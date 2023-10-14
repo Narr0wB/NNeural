@@ -20,4 +20,6 @@ class Log {
 #define LOG_WARN(...)   Log::GetLogger()->warn(__VA_ARGS__)
 #define LOG_INFO(...)   Log::GetLogger()->info(__VA_ARGS__)
 
+// #define ASSERT(condition) do  { if (!(condition)) {LOG_ERROR("ASSERTION FAILED! {} {}", __FILE__, __LINE__);}; } while (0)
+
 #endif // LOG_H
