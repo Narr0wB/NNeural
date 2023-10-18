@@ -9,6 +9,10 @@
 #include "../utils/Log.h"
 
 typedef std::vector<uint32_t> TensorShape;
+typedef struct {
+    uint32_t x;
+    uint32_t y;
+} MatrixShape;
 
 template <typename T>
 class Tensor {
@@ -210,6 +214,7 @@ class Tensor {
                     return _rank_2_tensor;
                 }
                 
+                return Tensor<T>();
             }
         }
 
@@ -233,13 +238,14 @@ class Tensor {
 
         }
 
-        void set(Tensor<T>, uint32_t x, uint32_t y = 0) [
+        // void set(Tensor<T>, uint32_t x, uint32_t y = 0) [
 
-        ]
+        // ]
 
         inline size_t size() { return m_Size; };
         inline size_t rank() { return m_Shape.size(); }
-        inline TensorShape shape() { returm m_Shape; }
+        inline TensorShape shape() { return m_Shape; }
+        inline T* data() { return m_Data; }
 
         // TENSOR OPERATIONS --------------------------------------------------------------------------------------------------------------
 
@@ -249,22 +255,48 @@ class Tensor {
 
 template <typename T>
 Tensor<T> tensormul(Tensor<T> a, Tensor<T> b) {
-    uint32_t a_3_rank = a.size() == 3 ? a.shape[0] : 1;
-    uint32_t b_3_rank = b.size() == 3 ? b.shape[0] : 1;
 
-    uint32_t a_2_rank = a.size() == 1 ? 1 : a.shape[a.size() - 2];
-    uint32_t b_2_rank = b.size() == 1 ? 1 : b.shape[b.size() - 2];
+    if (a.rank() > 2 || b.rank() > 2) {
+        uint32_t a_3_rank = a.rank() == 3 ? a.shape[0] : 1;
+        uint32_t b_3_rank = b.rank() == 3 ? b.shape[0] : 1;
 
-    uint32_t a_1_rank = a.shape[a.size() - 1];
-    uint32_t b_1_rank = b.shape[b.size() - 1];
+        uint32_t a_2_rank = a.size() == 1 ? 1 : a.shape[a.size() - 2];
+        uint32_t b_2_rank = b.size() == 1 ? 1 : b.shape[b.size() - 2];
 
-    uint32_t result_3_rank = std::max(a_3_rank, b_3_rank);
+        uint32_t a_1_rank = a.shape[a.size() - 1];
+        uint32_t b_1_rank = b.shape[b.size() - 1];
+
+        if (a_3_rank != b_3_rank and (a_3_rank != 1 or b_3_rank != 1)) {
+            LOG_ERROR("[ERROR] (tensormul) Invalid input tensors!");
+        }
+
+        uint32_t result_3_rank = std::max(a_3_rank, b_3_rank);
+        uint32_t result_2_rank;
+        uint32_t result_1_rank;
+
+        Tensor<T> _result = result_3_rank != 1 ? Tensor(result_3_rank, a_2_rank, b_1_rank) : Tensor(a_2_rank, b_1_rank);
+        T* result_data = _result.data();
+
+        for (uint32_t i = 0; i < result_3_rank; ++i) {
+            result_data += i * (result_2_rank * result_1_rank);
+
+            matmul((void*)result_data, sizeof(T), mat_1_data, mat_2_data, mat_1_shape, mat_2_shape);
+        }
+    }
+    else {
+
+    }
+    
+
+    
+
+    
 
     if (a_3_rank != b_3_rank and (a_3_rank != 1 or b_3_rank != 1)) {
         LOG_ERROR("[ERROR] (tensormul) Invalid input tensors!");
     }
 
-    Tensor<T> _result = result_3_rank != 1 ? Tensor(result_3_rank, a_2_rank, b_1_rank) : Tensor(a_2_rank, b_1_rank);
+    
 
     for (int i = 0; i < result_3_rank; ++i) {
 

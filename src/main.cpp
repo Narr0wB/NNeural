@@ -7,7 +7,7 @@
 int main(void) {
     Log::Init();
     
-    Tensor<INT32> t = {
+    Tensor<FLOAT32> t = {
        {{2, 3, 4},
         {1, 1, 1}},
 
@@ -23,7 +23,7 @@ int main(void) {
     for (int i = 0; i < 2; ++i) {
         for (int j = 0; j < 2; ++j) {
             for (int k = 0; k < 3; ++k) {
-                LOG_INFO("TENSOR {}", (INT32)t[i][j][k]);
+                LOG_INFO("TENSOR {}", (FLOAT32)t[i][j][k]);
             }
         }
     }
