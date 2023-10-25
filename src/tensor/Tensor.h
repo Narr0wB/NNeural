@@ -11,6 +11,7 @@
 #include "../utils/Log.h"
 
 typedef std::vector<uint32_t> TensorShape;
+#define MAX_RANK 3
 
 template <typename T>
 class Tensor {
@@ -176,6 +177,27 @@ class Tensor {
 
                 i++;
             }
+        }
+
+        Tensor<T> broadcast(TensorShape broadcast_shape) {
+            size_t broadcast_rank = broadcast_shape.size();
+            size_t current_rank = m_Size.size();
+
+            if (broadcast_rank < current_rank) {
+                LOG_ERROR("[ERROR] (Tensor::broadcast) Invalid broadcast shape!");
+            }
+
+            m_Shape.insert(0, broadcast_rank - current_rank, 1);
+
+            for (size_t i = 0; i < MAX_RANK; ++i) {
+                m_Shape[i] = std::max(m_Shape[i], broadcast_shape[i]);
+            }
+
+            realloc();
+
+            
+
+
         }
 
         operator T() { 
