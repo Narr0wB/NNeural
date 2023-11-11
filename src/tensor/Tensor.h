@@ -17,6 +17,7 @@ typedef std::vector<uint32_t> TensorShape;
 
 int func(int eddu);
 
+
 template <typename T>
 class BroadcastTensor {
     private:
@@ -132,8 +133,10 @@ class Tensor {
                 //LOG_ERROR("DEBUG: EROR");
             }
 
-            for (int i = m_Shape.size() - 1; i > -1; --i) {
-                index += *(parameters.begin() + i) * std::accumulate(m_Shape.begin() + i + 1, m_Shape.end(), 1, std::multiplies<T>());
+            for (int i = 0; i < m_Shape.size(); ++i) {
+                auto val1 = *(parameters.end() - i - 1);
+                auto val2 = m_Shape.end() - i;
+                index += val1 * std::accumulate(val2, m_Shape.end(), 1, std::multiplies<T>());
             }
 
             return index;
@@ -454,8 +457,24 @@ Tensor<T> tensormul(Tensor<T>& a, Tensor<T>& b) {
     uint32_t a_1_rank = a.shape()[a.rank() - 1];
     uint32_t b_1_rank = b.shape()[b.rank() - 1];
 
+    // Tensor<T>& original;
+    // BroadcastTensor<T> broadcasted;
+
+    // if (a.rank() == b.rank()) {
+    //     if (a.size() > b.size()) {
+    //         original = a;
+    //         broadcasted = b.broadcast({a_3_rank, a_1_rank, b_1_rank});
+    //     }
+    //     else {
+    //         original = b;
+    //         broadcasted = a.broadcast({a_3_rank, a_1_rank, b_1_rank});
+    //     }
+    // }
+
     if (a.rank() > b.rank()) {
-        BroadcastTensor<T> b_broadcast = b.broadcast({a_3_rank, a_1_rank, b_1_rank});
+        Tensor<T>& original = a;
+        BroadcastTensor<T> broadcasted = b.broadcast({a_3_rank, a_1_rank, b_1_rank});
+
         Tensor<T> result(a_3_rank, a_2_rank, b_1_rank);
 
         for (uint32_t r = 0; r < a_3_rank; ++r) {
@@ -465,7 +484,7 @@ Tensor<T> tensormul(Tensor<T>& a, Tensor<T>& b) {
                     T temp_sum = 0;
 
                     for (uint32_t k = 0; k < a_1_rank; ++k) {
-                        temp_sum += (a(r, i, k) * b_broadcast(r, k, j));
+                        temp_sum += (original(r, i, k) * broadcasted(r, k, j));
                     }
 
                     result.set(temp_sum, r, i, j);
@@ -478,7 +497,13 @@ Tensor<T> tensormul(Tensor<T>& a, Tensor<T>& b) {
 
         return result;
     }
+    else {
 
+    }
+    
+    
+
+    
 
     // if (a.rank() > 2 || b.rank() > 2) {
         

@@ -19,8 +19,13 @@ int main(void) {
     // assert(t.size() == 2 * 3);
     // assert(t2.size() == 3 * 4);gdb
 
-    // auto a = t2.broadcast({3, 3, 3});
-    // std::cout << a << std::endl;
+    Tensor<FP32> test = {
+        {1,},
+        {1,},
+        {1,},
+    };
+    auto a = t2.broadcast({1, 3, 3});
+    std::cout << a << std::endl;
 
     // LOG_INFO("{}", a(0, 1, 1));
 

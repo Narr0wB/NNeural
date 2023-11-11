@@ -10,13 +10,13 @@ $(TARGET): $(OBJS)
 	$(CC) $(OBJS) -o $(TARGET)
 
 build/main.o: src/main.cpp src/tensor/Tensor.h
-	$(CC) -g -c $< -o $@
+	$(CC) $(INCLUDE) -g -c $< -o $@
  
 build/Log.o: src/utils/Log.cpp src/utils/Log.h
 	$(CC) $(INCLUDE) -g -c $< -o $@
 
 build/Operations.o: src/tensor/Operations.cpp src/tensor/Operations.h
-	$(CC) -g -c $< -o $@
+	$(CC) $(INCLUDE) -g -c $< -o $@
 
 
 
