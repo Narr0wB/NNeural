@@ -8,14 +8,13 @@
 #include <functional>
 #include <numeric>
 
-#include "Operations.h"
 #include "../types.h"
 #include "../utils/Log.h"
 
-typedef std::vector<uint32_t> TensorShape;
 #define MAX_RANK 3
 
-int func(int eddu);
+typedef std::vector<uint32_t> TensorShape;
+std::ostream& operator<<(std::ostream& out, TensorShape shape);
 
 
 template <typename T>
@@ -24,7 +23,8 @@ class BroadcastTensor {
         TensorShape m_Shape;
         TensorShape m_OriginalShape;
 
-        size_t m_Size = 1;
+        size_t m_Size;
+        size_t m_OriginalSize;
         std::shared_ptr<T[]> m_Data; 
 
         // Get data's index in the internal buffer
@@ -34,9 +34,11 @@ class BroadcastTensor {
                 //LOG_ERROR("DEBUG: EROR");
             }
 
-            for (int i = m_OriginalShape.size() - 1; i > -1; --i) {
-                if (m_OriginalShape[i] != 1) {
-                    index += *(parameters.begin() + i) * std::accumulate(m_OriginalShape.begin() + i + 1, m_OriginalShape.end(), 1, std::multiplies<T>());
+            for (int i = 0; i < m_OriginalShape.size(); ++i) {
+                if (m_OriginalShape[rank() - i - 1] != 1) {
+                    auto current_parameter = *(parameters.end() - i - 1);
+                
+                    index += current_parameter * std::accumulate(m_OriginalShape.end() - i, m_OriginalShape.end(), 1, std::multiplies<T>());
                 }
             }
 
@@ -45,13 +47,22 @@ class BroadcastTensor {
 
     public:
 
-        BroadcastTensor(std::shared_ptr<T[]>& original_data, TensorShape& shape, TensorShape& original_shape) : m_Data(original_data), m_Shape(shape), m_OriginalShape(original_shape) {}
+        BroadcastTensor(std::shared_ptr<T[]>& original_data, size_t size, size_t original_size, TensorShape& shape, TensorShape& original_shape) : m_Data(original_data), m_Shape(shape), m_OriginalShape(original_shape), m_Size(size), m_OriginalSize(original_size) {}
 
         T operator() (uint32_t x, uint32_t y, uint32_t z) {
             return m_Data[_index({x, y, z})];
         }
 
+        T get(uint32_t internal_index) {
+            if (internal_index > m_Size - 1) {
+                LOG_ERROR("[ERROR] (Tensor::get) Invalid internal access index!");
+            }
+
+            return m_Data[internal_index % m_OriginalSize];
+        }
+
         inline size_t rank() { return m_Shape.size(); }
+        inline FP64 identifier() { return ((FP64)m_Size / (m_Size + 3)) * rank(); }
 
         template <typename B>
         friend std::ostream& operator<<(std::ostream& out, BroadcastTensor<B>& tensor) {
@@ -63,7 +74,9 @@ class BroadcastTensor {
                         out << tensor.m_Data[tensor._index({i})] << ", ";
                     }
 
-                    out << tensor.m_Data[tensor._index({tensor.m_Shape[0] - 1})] << "}" << std::endl;
+                    out << tensor.m_Data[tensor._index({tensor.m_Shape[0] - 1})];
+
+                    out << "}";
                     break;
                 }
 
@@ -80,7 +93,7 @@ class BroadcastTensor {
                         out << tensor.m_Data[tensor._index({j, tensor.m_Shape[1] - 1})] << "}";
                         out << std::endl;
                     }
-                    out << "}" << std::endl;
+                    out << "}";
                     break;
                 }
 
@@ -109,7 +122,7 @@ class BroadcastTensor {
                         out << "}" << std::endl;
                     }
 
-                    out << "}" << std::endl;
+                    out << "}";
                     break;
                 }
             }
@@ -134,9 +147,9 @@ class Tensor {
             }
 
             for (int i = 0; i < m_Shape.size(); ++i) {
-                auto val1 = *(parameters.end() - i - 1);
-                auto val2 = m_Shape.end() - i;
-                index += val1 * std::accumulate(val2, m_Shape.end(), 1, std::multiplies<T>());
+                auto current_parameter = *(parameters.end() - i - 1);
+
+                index += current_parameter * std::accumulate(m_Shape.end() - i, m_Shape.end(), 1, std::multiplies<T>());
             }
 
             return index;
@@ -148,7 +161,7 @@ class Tensor {
             m_Size = 0;
         }
 
-        Tensor(TensorShape shape) {
+        Tensor(TensorShape shape) : m_Shape(shape) {
             if (!(typeid(T) == typeid(FP32) || typeid(T) == typeid(FP64) || typeid(T) == typeid(I32) || typeid(T) == typeid(I64))) {
                 LOG_ERROR("[ERROR] (Tensor::Tensor) Unsupported tensor type!");
             }
@@ -181,6 +194,11 @@ class Tensor {
             if (!(typeid(T) == typeid(FP32) || typeid(T) == typeid(FP64) || typeid(T) == typeid(I32) || typeid(T) == typeid(I64))) {
                 LOG_ERROR("[ERROR] (Tensor::Tensor) Unsupported tensor type!");
             }
+
+            // If one of the indices is one, then ignore said index as it does not provide useful information
+            if (x == 1) {x = y; y = z; z = 0;}
+            if (y == 1) {y = 0;}
+            if (z == 1) {z = 0;}
 
             if (x == 0) {
                 LOG_ERROR("[ERROR] (Tensor::Tensor) Invalid initialization index!");
@@ -328,15 +346,15 @@ class Tensor {
         }
 
         T operator() (uint32_t x, uint32_t y = 0, uint32_t z = 0) {
-            if (x > m_Shape[0]) {
+            if (rank() == 3 && x > m_Shape[rank() - 3]) {
                 LOG_ERROR("[ERROR] (Tensor::operator()) Invalid access x index!");
             }
 
-            if (y > m_Shape[1]) {
+            if (rank() != 1 && y > m_Shape[rank() - 2]) {
                 LOG_ERROR("[ERROR] (Tensor::operator()) Invalid access y index!");
             }
 
-            if (z > m_Shape[2]) {
+            if (z > m_Shape[rank() - 1]) {
                 LOG_ERROR("[ERROR] (Tensor::operator()) Invalid access z index!");
             }
 
@@ -347,10 +365,26 @@ class Tensor {
             m_Data[_index({x, y, z})] = val;
         }
 
+        void set(T val, uint32_t internal_index) {
+            if (internal_index > m_Size-1) {
+                LOG_ERROR("[ERROR] (Tensor::set) Invalid internal access index!");
+            }
+
+            m_Data[internal_index] = val;
+        }
+
+        T get(uint32_t internal_index) {
+            if (internal_index > m_Size - 1) {
+                LOG_ERROR("[ERROR] (Tensor::get) Invalid internal access index!");
+            }
+
+            return m_Data[internal_index];
+        }
+
         BroadcastTensor<T> broadcast(TensorShape broadcast_shape) {
-            size_t broadcast_rank = broadcast_shape.size();
-            size_t current_rank = rank();
-            TensorShape original_shape = m_Shape;
+            size_t broadcast_rank       = broadcast_shape.size();
+            size_t current_rank         = rank();
+            TensorShape original_shape  = m_Shape;
 
             if (broadcast_rank < current_rank) {
                 LOG_ERROR("[ERROR] (Tensor::broadcast) Invalid broadcast shape!");
@@ -359,25 +393,36 @@ class Tensor {
             original_shape.insert(original_shape.begin(), broadcast_rank - current_rank, 1);
             TensorShape new_shape = original_shape;
 
-            for (size_t i = 0; i < MAX_RANK; ++i) {
+            for (size_t i = 0; i < broadcast_rank; ++i) {
                 if (new_shape[i] != broadcast_shape[i] && new_shape[i] != 1){
-                    LOG_ERROR("[ERROR] (Tensor::broadcast) Cannot broadcast a ({}, {}, {}) shape to a ({}, {}, {}) shape", rank() == 3 ? original_shape[0] : 1, rank() >= 2 ? original_shape[rank() - 2] : 1, original_shape[rank() - 1], broadcast_shape.size() == 3 ? broadcast_shape[0] : 1, broadcast_shape.size() >= 2 ? broadcast_shape[broadcast_shape.size() - 2] : 1, broadcast_shape[broadcast_shape.size() - 1]);
+                    LOG_ERROR("[ERROR] (Tensor::broadcast) Cannot broadcast a ({}, {}, {}) shape to a ({}, {}, {}) shape", broadcast_rank == 3 ? original_shape[0] : 1, broadcast_rank != 1 ? original_shape[broadcast_rank - 2] : 1, original_shape[broadcast_rank - 1], broadcast_rank == 3 ? broadcast_shape[0] : 1, broadcast_rank != 1 ? broadcast_shape[broadcast_rank - 2] : 1, broadcast_shape[broadcast_rank - 1]);
                 }
 
                 new_shape[i] = std::max(new_shape[i], broadcast_shape[i]);
             }
 
-            return BroadcastTensor<T>(m_Data, new_shape, original_shape);
+            size_t new_size = std::accumulate(new_shape.begin(), new_shape.end(), 1, std::multiplies<T>());
+
+            return BroadcastTensor<T>(m_Data, new_size, m_Size, new_shape, original_shape);
         }
 
         // void set(Tensor<T>, uint32_t x, uint32_t y = 0) [
 
         // ]
 
-        inline size_t size() { return m_Size; };
+        inline size_t size() { return m_Size; }
         inline size_t rank() { return m_Shape.size(); }
         inline TensorShape shape() { return m_Shape; }
         inline T* data() { return m_Data.get(); }
+        inline FP64 identifier() { 
+            size_t _rank = rank();
+
+            for (auto element : m_Shape) {
+                if (element == 1) _rank--;
+            }
+
+            return ((FP64)m_Size / (m_Size + 3)) * _rank; 
+        }
 
         // TENSOR OPERATIONS --------------------------------------------------------------------------------------------------------------
         
@@ -391,7 +436,9 @@ class Tensor {
                         out << tensor.m_Data[tensor._index({i})] << ", ";
                     }
 
-                    out << tensor.m_Data[tensor._index({tensor.m_Shape[0] - 1})] << "}" << std::endl;
+                    out << tensor.m_Data[tensor._index({tensor.m_Shape[0] - 1})];
+
+                    out << "}";
                     break;
                 }
 
@@ -408,7 +455,7 @@ class Tensor {
                         out << tensor.m_Data[tensor._index({j, tensor.m_Shape[1] - 1})] << "}";
                         out << std::endl;
                     }
-                    out << "}" << std::endl;
+                    out << "}";
                     break;
                 }
 
@@ -437,7 +484,7 @@ class Tensor {
                         out << "}" << std::endl;
                     }
 
-                    out << "}" << std::endl;
+                    out << "}";
                     break;
                 }
             }
@@ -445,131 +492,5 @@ class Tensor {
             return out;
         }
 };
-
-template <typename T>
-Tensor<T> tensormul(Tensor<T>& a, Tensor<T>& b) {
-    uint32_t a_3_rank = a.rank() == 3 ? a.shape()[0] : 1;
-    uint32_t b_3_rank = b.rank() == 3 ? b.shape()[0] : 1;
-
-    uint32_t a_2_rank = a.rank() == 1 ? 1 : a.shape()[a.rank() - 2];
-    uint32_t b_2_rank = b.rank() == 1 ? 1 : b.shape()[b.rank() - 2];
-
-    uint32_t a_1_rank = a.shape()[a.rank() - 1];
-    uint32_t b_1_rank = b.shape()[b.rank() - 1];
-
-    // Tensor<T>& original;
-    // BroadcastTensor<T> broadcasted;
-
-    // if (a.rank() == b.rank()) {
-    //     if (a.size() > b.size()) {
-    //         original = a;
-    //         broadcasted = b.broadcast({a_3_rank, a_1_rank, b_1_rank});
-    //     }
-    //     else {
-    //         original = b;
-    //         broadcasted = a.broadcast({a_3_rank, a_1_rank, b_1_rank});
-    //     }
-    // }
-
-    if (a.rank() > b.rank()) {
-        Tensor<T>& original = a;
-        BroadcastTensor<T> broadcasted = b.broadcast({a_3_rank, a_1_rank, b_1_rank});
-
-        Tensor<T> result(a_3_rank, a_2_rank, b_1_rank);
-
-        for (uint32_t r = 0; r < a_3_rank; ++r) {
-
-            for (uint32_t i = 0; i < a_2_rank; ++i) {
-                for (uint32_t j = 0; j < b_1_rank; ++j) {
-                    T temp_sum = 0;
-
-                    for (uint32_t k = 0; k < a_1_rank; ++k) {
-                        temp_sum += (original(r, i, k) * broadcasted(r, k, j));
-                    }
-
-                    result.set(temp_sum, r, i, j);
-                }
-
-                std::cout << result << std::endl;
-            }
-
-        }
-
-        return result;
-    }
-    else {
-
-    }
-    
-    
-
-    
-
-    // if (a.rank() > 2 || b.rank() > 2) {
-        
-
-    //     if (a_3_rank != b_3_rank and (a_3_rank != 1 and b_3_rank != 1)) {
-    //         LOG_ERROR("[ERROR] (tensormul) Invalid input tensors!");
-    //     }
-
-    //     uint32_t result_3_rank = std::max(a_3_rank, b_3_rank);
-    //     uint32_t result_2_rank = a_2_rank;
-    //     uint32_t result_1_rank = b_1_rank;
-
-    //     Tensor<T> _result = result_3_rank != 1 ? Tensor<T>(result_3_rank, result_2_rank, result_1_rank) : Tensor<T>(result_2_rank, result_1_rank);
-    //     T* result_data = _result.data();
-
-    //     MatrixShape mat_1_shape = {a_2_rank, a_1_rank};
-    //     MatrixShape mat_2_shape = {b_2_rank, b_1_rank};
-
-    //     for (uint32_t i = 0; i < result_3_rank; ++i) {
-    //         T* _result_data = result_data + i * (result_2_rank * result_1_rank);
-
-    //         // If Tensor A's 3rd rank is greater than 1, then the internal matrix will change
-    //         T* mat_1_data = a.data() + (a_3_rank != 1 ? i : 0) * (a_2_rank * a_1_rank);
-
-    //         // If Tensor B's 3rd rank is greater than 1, then the internal matrix will change
-    //         T* mat_2_data = b.data() + (b_3_rank != 1 ? i : 0) * (b_2_rank * b_1_rank);
-
-    //         // Now calculate the single matrix multiplication for each internal matrix
-    //         //matmul(TYPE_TO_ENUM(T), (void*)_result_data, (void*)mat_1_data, (void*)mat_2_data, mat_1_shape, mat_2_shape);
-
-
-    //     }
-
-    //     return _result;
-    // }
-    // else {
-
-    //     uint32_t a_2_rank = a.rank() == 1 ? a.shape()[a.rank() - 1] : a.shape()[a.rank() - 2];
-    //     uint32_t b_2_rank = b.rank() == 1 ? b.shape()[b.rank() - 1] : b.shape()[b.rank() - 2];
-
-    //     uint32_t a_1_rank = a.rank() == 1 ? 1 : a.shape()[a.rank() - 1];
-    //     uint32_t b_1_rank = b.rank() == 1 ? 1 : b.shape()[b.rank() - 1];
-
-    //     if (a_1_rank != b_2_rank) {
-    //         LOG_ERROR("[ERROR] (tensormul) Invalid input tensors!");
-    //     }
-
-    //     uint32_t result_2_rank = a_2_rank;
-    //     uint32_t result_1_rank = b_1_rank;
-
-    //     Tensor<T> _result = Tensor<T>(result_2_rank, result_1_rank);
-    //     T* result_data = _result.data();
-
-    //     // if we have a one-dimentional Tensor, we treat it as if it were a column vector
-    //     MatrixShape mat_1_shape = {a_2_rank, a_1_rank};
-    //     MatrixShape mat_2_shape = {b_2_rank, b_1_rank};
-
-    //     T* mat_1_data = a.data();
-    //     T* mat_2_data = b.data();
-
-    //     matmul(TYPE_TO_ENUM(T), (void*)result_data, (void*)mat_1_data, (void*)mat_2_data, mat_1_shape, mat_2_shape);
-
-    //     return _result;
-    // }
-
-    return Tensor<T>();
-}
 
 #endif // TENSOR_H

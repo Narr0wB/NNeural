@@ -20,9 +20,6 @@ class Log {
         inline static std::shared_ptr<spdlog::logger>& GetLogger() { return s_CoreLogger; }
 };
 
-template <typename T>
-void log_print_vector(int logger_level, std::vector<T> vector, std::string separator);
-
 #define LOG_ERROR(...)  do { Log::GetLogger()->error(__VA_ARGS__); exit(EXIT_FAILURE); } while (0)
 #define LOG_WARN(...)   Log::GetLogger()->warn(__VA_ARGS__)
 #define LOG_INFO(...)   Log::GetLogger()->info(__VA_ARGS__)
