@@ -32,7 +32,7 @@ int main(void) {
     // LOG_INFO("{}", a(0, 1, 1));
 
 
-    Tensor<FP32> added = subtract(t2, t);
+    Tensor<FP32> added = scale(t, 0.5f);
     
     // LOG_INFO("Multiplying a ({}, {}, {}) Tensor with a ({}, {}, {}) Tensor resulting in a rank {} Tensor", 1, 1, t2.shape()[0], 1, t.shape()[0], t.shape()[1], multiplied.rank());
 

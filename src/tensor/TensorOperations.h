@@ -4,6 +4,8 @@
 
 #include "Tensor.h"
 
+// Computes the matrix multiplications between two tensors (any tensor with rank bigger than 2 is considered a collection of matrices)
+// Broadcasting: Allows for broadcasting
 template <typename T>
 Tensor<T> tensormul(Tensor<T>& a, Tensor<T>& b) {
     uint32_t a_3_rank = a.rank() == 3 ? a.shape()[0] : 1;
@@ -64,6 +66,8 @@ Tensor<T> tensormul(Tensor<T>& a, Tensor<T>& b) {
     return result;
 }
 
+// Computes the sum of two tensors in the form of: a + b
+// Broadcasting: Allows for broadcasting
 template <typename T>
 Tensor<T> add(Tensor<T> a, Tensor<T> b) {
     
@@ -100,6 +104,8 @@ Tensor<T> add(Tensor<T> a, Tensor<T> b) {
     }
 }
 
+// Computes the difference between two tensors in the form of: a - b
+// Broadcasting: Allows for broadcasting
 template <typename T>
 Tensor<T> subtract(Tensor<T> a, Tensor<T> b) {
     
@@ -130,6 +136,56 @@ Tensor<T> subtract(Tensor<T> a, Tensor<T> b) {
 
         for (size_t i = 0; i < result.size(); ++i) {
             result.set(a_broadcasted.get(i) - b.get(i), i);
+        }
+
+        return result;
+    }
+}
+
+// Computes the element-wise scaling of a given tensor
+// Broadcasting: Broadcasting not needed
+template <typename T>
+Tensor<T> scale(Tensor<T> a, T scalar) {
+    Tensor<T> result(a.shape());
+
+    for (size_t i = 0; i < a.size(); ++i) {
+        result.set(a.get(i) * scalar, i);
+    }
+
+    return result;
+}
+
+
+// Computes the hadamard product between two tensors (element-wise product)
+// Broadcasting: Allows for broadcasting
+template <typename T>
+Tensor<T> hadamard(Tensor<T> a, Tensor<T> b) {
+    if (a.identifier() == b.identifier()) {
+        Tensor<T> result(a.shape());
+
+        for (size_t i = 0; i < a.size(); ++i) {
+            result.set(a.get(i) * b.get(i), i);
+        }
+
+        return result;
+    }
+
+    if (a.identifier() > b.identifier()) {
+        Tensor<T> result(a.shape());
+        BroadcastTensor<T> b_broadcasted = b.broadcast(a.shape());
+
+        for (size_t i = 0; i < result.size(); ++i) {
+            result.set(a.get(i) * b_broadcasted.get(i), i);
+        }
+
+        return result;
+    }
+    else {
+        Tensor<T> result(b.shape());
+        BroadcastTensor<T> a_broadcasted = a.broadcast(b.shape());
+
+        for (size_t i = 0; i < result.size(); ++i) {
+            result.set(b.get(i) * a_broadcasted.get(i), i);
         }
 
         return result;

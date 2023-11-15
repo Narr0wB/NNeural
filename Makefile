@@ -16,11 +16,11 @@ build/Log.o: src/utils/Log.cpp src/utils/Log.h
 	$(CC) $(INCLUDE) $(COPTIONS) -c $< -o $@
 
 build/Tensor.o: src/tensor/Tensor.cpp
-	$(CC) $(COPTIONS) -c $< -o $@
+	$(CC) $(INCLUDE) $(COPTIONS) -c $< -o $@
 
 clean:
-	rm build/*.o
-	rm build/*.exe
+	powershell rm build/*.o
+	powershell rm build/*.exe
 
 # clean:
 # 	rm $(TARGET)
