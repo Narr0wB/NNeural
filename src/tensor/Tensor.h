@@ -10,12 +10,13 @@
 
 #include "../types.h"
 #include "../utils/Log.h"
+#include "../utils/Hardware.h"
+#include "../utils/Memory.h"
 
 #define MAX_RANK 3
 
 typedef std::vector<uint32_t> TensorShape;
 std::ostream& operator<<(std::ostream& out, TensorShape shape);
-
 
 template <typename T>
 class BroadcastTensor {
@@ -131,13 +132,12 @@ class BroadcastTensor {
         }
 };
 
-
-template <typename T>
+template <typename T, Hardware H = Hardware::CPU>
 class Tensor {
     private:
         TensorShape m_Shape;
         size_t m_Size = 1;
-        std::shared_ptr<T[]> m_Data;
+        std::shared_ptr<T> m_Data;
 
         // Get data's index in the internal buffer
         size_t _index(std::initializer_list<uint32_t> parameters) {
@@ -174,7 +174,7 @@ class Tensor {
                 m_Size *= dimentions;
             }
 
-            m_Data = std::make_unique<T[]>(m_Size);;
+            m_Data = memory::_make_shared<T, H>(m_Size);
         }
 
         Tensor(T val) {
@@ -185,9 +185,15 @@ class Tensor {
             m_Shape = {1};
             m_Size = 1;
 
-            m_Data = std::make_unique<T[]>(m_Size);
+            m_Data = memory::_make_shared<T, H>(m_Size);
 
-            m_Data[0] = val;
+            if (H == Hardware::CPU) {
+                m_Data.get()[0] = val;
+            }
+            else {
+                _kernel_set(m_Data, 0, val); 
+            }
+
         }
 
         Tensor(uint32_t x, uint32_t y = 0, uint32_t z = 0) {
@@ -208,7 +214,7 @@ class Tensor {
                 m_Shape = TensorShape{x};
                 m_Size = x;
 
-                m_Data = std::make_unique<T[]>(m_Size);
+                m_Data = memory::_make_shared<T, H>(m_Size);
 
                 return;
             }
@@ -217,7 +223,7 @@ class Tensor {
                 m_Shape = TensorShape{x, y};
                 m_Size = x*y;
 
-                m_Data = std::make_unique<T[]>(m_Size);
+                m_Data = memory::_make_shared<T, H>(m_Size);
 
                 return;
             }
@@ -225,7 +231,7 @@ class Tensor {
             m_Shape = TensorShape{x, y, z};
             m_Size = x*y*z;
 
-            m_Data = std::make_unique<T[]>(m_Size);
+            m_Data = memory::_make_shared<T, H>(m_Size);
         }
 
         Tensor(std::initializer_list<T> list) {
@@ -236,11 +242,16 @@ class Tensor {
             m_Shape = TensorShape{list.size()};
             m_Size = list.size();
 
-            m_Data = std::make_unique<T[]>(m_Size);
+            m_Data = memory::_make_shared<T, H>(m_Size);
 
             uint32_t i = 0;
             for (auto element : list) {
-                m_Data[_index({i++})] = element;
+                if (H == Hardware::CPU) {
+                    m_Data.get()[_index({i++})] = element;
+                }
+                else {
+                    _kernel_set(m_Data, _index({i++}), element); 
+                }
             }
         }
 
@@ -254,7 +265,7 @@ class Tensor {
             m_Size = list.size() * first->size();
 
 
-            m_Data = std::make_unique<T[]>(m_Size);
+            m_Data = memory::_make_shared<T, H>(m_Size);
 
             uint32_t i = 0;
             for (auto rank_1_tensor : list) {
@@ -264,7 +275,12 @@ class Tensor {
 
                 uint32_t j = 0;
                 for (auto element : rank_1_tensor) {
-                    m_Data[_index({i, j++})] = element;
+                    if (H == Hardware::CPU) {
+                        m_Data.get()[_index({i, j++})] = element;
+                    }
+                    else {
+                        _kernel_set(m_Data, _index({i, j++}), element); 
+                    }
                 }
 
                 i++;
@@ -281,7 +297,7 @@ class Tensor {
             m_Shape = TensorShape{list.size(), first->size(), second->size()};
             m_Size = list.size() * first->size() * second->size();
 
-            m_Data = std::make_unique<T[]>(m_Size);
+            m_Data = memory::_make_shared<T, H>(m_Size);
             
             uint32_t i = 0;
             for (auto rank_2_tensor : list) {
@@ -297,7 +313,12 @@ class Tensor {
                     
                     uint32_t k = 0;
                     for (auto element : rank_1_tensor) {
-                        m_Data[_index({i, j, k++})] = element; 
+                        if (H == Hardware::CPU) {
+                            m_Data.get()[_index({i, j, k++})] = element;
+                        }
+                        else {
+                            _kernel_set(m_Data, _index({i, j, k++}), element); 
+                        }
                     }
                     
                     j++;
@@ -307,12 +328,13 @@ class Tensor {
             }
         }
 
+        template <EnableIf<H == Hardware::CPU> = 0>
         operator T() { 
             if (m_Shape.size() != 1 && m_Shape[0] != 1) { 
                 LOG_ERROR("[ERROR] Only scalar tensors can be converted to numbers!"); 
             } 
 
-            return m_Data[0];
+            return m_Data.get()[0];
         }
 
         Tensor<T> operator[] (uint32_t index) {
@@ -345,6 +367,7 @@ class Tensor {
             }
         }
 
+        template <EnableIf<H == Hardware::CPU> = 0>
         T operator() (uint32_t x, uint32_t y = 0, uint32_t z = 0) {
             if (rank() == 3 && x > m_Shape[rank() - 3]) {
                 LOG_ERROR("[ERROR] (Tensor::operator()) Invalid access x index!");
@@ -405,10 +428,6 @@ class Tensor {
 
             return BroadcastTensor<T>(m_Data, new_size, m_Size, new_shape, original_shape);
         }
-
-        // void set(Tensor<T>, uint32_t x, uint32_t y = 0) [
-
-        // ]
 
         inline size_t size() { return m_Size; }
         inline size_t rank() { return m_Shape.size(); }

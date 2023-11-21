@@ -3,7 +3,12 @@
 #include "tensor/Tensor.h"
 #include "tensor/TensorOperations.h"
 #include "utils/Log.h"
+#include "model/Layer.h"
 
+template <typename T>
+T ReLU(T in) {
+    return in > 0 ? in : 0;
+}
 
 int main(void) {
     Log::Init();
@@ -14,7 +19,9 @@ int main(void) {
         {1, 1, 1}
     };
 
-    Tensor<FP32> t2 = {1, 2, 3};
+    Tensor<FP32, Hardware::GPU> t2 = {1, 2, 3};
+
+    Layer<FP32, Hardware::CPU> layer({1}, {2}, ReLU<FP32>);
 
     //LOG_INFO("lil meech {}", t.broadcast({10, 2, 3})(9, 0, 2));
 

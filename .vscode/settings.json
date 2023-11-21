@@ -65,6 +65,13 @@
         "list": "cpp",
         "xhash": "cpp",
         "xstring": "cpp",
-        "xutility": "cpp"
-    }
+        "xutility": "cpp",
+        "__locale": "cpp",
+        "__nullptr": "cpp",
+        "optional": "cpp",
+        "bitset": "cpp",
+        "map": "cpp",
+        "set": "cpp"
+    },
+    "C_Cpp.errorSquiggles": "disabled"
 }

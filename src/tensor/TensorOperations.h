@@ -4,7 +4,11 @@
 
 #include "Tensor.h"
 
-// Computes the matrix multiplications between two tensors (any tensor with rank bigger than 2 is considered a collection of matrices)
+// Blank prefixes to add to parameters to improve code clarity
+#define _IN_ 
+#define _OUT_
+
+// Computes the matrix multiplication between two tensors (any tensor with rank bigger than 2 is considered a collection of matrices)
 // Broadcasting: Allows for broadcasting
 template <typename T>
 Tensor<T> tensormul(Tensor<T>& a, Tensor<T>& b) {
@@ -66,10 +70,10 @@ Tensor<T> tensormul(Tensor<T>& a, Tensor<T>& b) {
     return result;
 }
 
-// Computes the sum of two tensors in the form of: a + b
+// Computes the element-wise sum of two tensors in the form of: a + b
 // Broadcasting: Allows for broadcasting
 template <typename T>
-Tensor<T> add(Tensor<T> a, Tensor<T> b) {
+Tensor<T> add(Tensor<T>& a, Tensor<T>& b) {
     
     if (a.identifier() == b.identifier()) {
         Tensor<T> result(a.shape());
@@ -104,10 +108,10 @@ Tensor<T> add(Tensor<T> a, Tensor<T> b) {
     }
 }
 
-// Computes the difference between two tensors in the form of: a - b
+// Computes the element-wise difference between two tensors in the form of: a - b
 // Broadcasting: Allows for broadcasting
 template <typename T>
-Tensor<T> subtract(Tensor<T> a, Tensor<T> b) {
+Tensor<T> subtract(Tensor<T>& a, Tensor<T>& b) {
     
     if (a.identifier() == b.identifier()) {
         Tensor<T> result(a.shape());
@@ -142,24 +146,10 @@ Tensor<T> subtract(Tensor<T> a, Tensor<T> b) {
     }
 }
 
-// Computes the element-wise scaling of a given tensor
-// Broadcasting: Broadcasting not needed
-template <typename T>
-Tensor<T> scale(Tensor<T> a, T scalar) {
-    Tensor<T> result(a.shape());
-
-    for (size_t i = 0; i < a.size(); ++i) {
-        result.set(a.get(i) * scalar, i);
-    }
-
-    return result;
-}
-
-
-// Computes the hadamard product between two tensors (element-wise product)
+// Computes the hadamard product (element-wise product) between two tensors 
 // Broadcasting: Allows for broadcasting
 template <typename T>
-Tensor<T> hadamard(Tensor<T> a, Tensor<T> b) {
+Tensor<T> hadamard(Tensor<T>& a, Tensor<T>& b) {
     if (a.identifier() == b.identifier()) {
         Tensor<T> result(a.shape());
 
@@ -191,5 +181,36 @@ Tensor<T> hadamard(Tensor<T> a, Tensor<T> b) {
         return result;
     }
 }
+
+// Computes the element-wise scaling of a given tensor
+// Broadcasting: Broadcasting not needed
+template <typename T>
+Tensor<T> scale(Tensor<T>& a, T scalar) {
+    Tensor<T> result(a.shape());
+
+    for (size_t i = 0; i < a.size(); ++i) {
+        result.set(a.get(i) * scalar, i);
+    }
+
+    return result;
+}
+
+// _OUT_ parameter return functions --------------------------------------------------------------------------------
+
+// Apply a particual function to each element in 
+template <typename T>
+void _tensor_apply(_IN_ T (*func)(T), _IN_ Tensor<T>& A, _OUT_ Tensor<T>& result) {
+
+}
+
+// Perform the forward propagation operation (in matrix/tensor form) and store result in Zm
+// Wm * An + Bm = Zm
+//
+// Broadcasting: Does not allow for broadcasting
+template <typename T>
+void _tensor_forward(_IN_ Tensor<T>& Wm, _IN_ Tensor<T>& An, _IN_ Tensor<T>& Bm, _OUT_ Tensor<T>& Zm) {
+     
+}
+
 
 #endif // TENSOR_OPERATIONS_H
