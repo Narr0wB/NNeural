@@ -3,9 +3,11 @@
 #define MEMORY_H
 
 #include <memory>
-#include <cuda.h>
-#include <thrust/device_vector.h>
-#include <cuda_runtime.h>
+#include <hip/hip_common.h>
+#include <hip/hip_runtime.h>
+// #include <cuda.h>
+// #include <thrust/device_vector.h>
+// #include <cuda_runtime.h>
 
 #include "utils/Hardware.h"
 #include "utils/Log.h"
@@ -16,8 +18,8 @@ namespace memory {
 template <typename T>
 struct gpu_deleter {
     void operator() (T* p) noexcept {
-        if (cudaFree(p) != cudaSuccess) {
-            LOG_ERROR("(GPU Deleter) Could not free gpu memory CUDA ERROR: {}", cudaGetErrorString(cudaGetLastError));
+        if (hipFree(p) != hipSuccess) {
+            LOG_ERROR("(GPU Deleter) Could not free gpu memory HIP ERROR: {}", hipGetLastError());
         }
     }
 };
@@ -31,8 +33,8 @@ struct gpu_allocator {
 
         T* _ptr;
 
-        if (cudaMalloc((void**) &_ptr, size) != cudaSuccess) {
-            LOG_ERROR("(GPU Allocator) Could not allocate memory CUDA ERROR: {}", cudaGetErrorString(cudaGetLastError));
+        if (hipMalloc<T>(&_ptr, size) != hipSuccess) {
+            LOG_ERROR("(GPU Allocator) Could not allocate memory HIP ERROR: {}", hipGetLastError());
         }
     }
 };
@@ -48,10 +50,10 @@ std::shared_ptr<T> _make_shared(Args&&... args) {
         }
 
         case Hardware::GPU: {
-            // Forward the parameters to the allocator
+            // Forward the parameters needed to construct T to the allocator (most likely a size_t)
             T* ptr = gpu_allocator::allocate<T>(std::forward<Args>(args)...);
 
-            return std::shared_ptr<T> temp(ptr, gpu_deleter);
+            return std::shared_ptr<T>(ptr, gpu_deleter);
             break;
         }
 

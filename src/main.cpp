@@ -19,7 +19,7 @@ int main(void) {
         {1, 1, 1}
     };
 
-    Tensor<FP32, Hardware::GPU> t2 = {1, 2, 3};
+    Tensor<FP32, Hardware::CPU> t2 = {1, 2, 3};
 
     Layer<FP32, Hardware::CPU> layer({1}, {2}, ReLU<FP32>);
 

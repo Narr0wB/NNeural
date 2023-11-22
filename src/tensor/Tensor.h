@@ -242,16 +242,13 @@ class Tensor {
             m_Shape = TensorShape{list.size()};
             m_Size = list.size();
 
-            m_Data = memory::_make_shared<T, H>(m_Size);
+            m_Data = memory::_make_shared<T, H>(m_Size * sizeof(T));
 
-            uint32_t i = 0;
-            for (auto element : list) {
-                if (H == Hardware::CPU) {
-                    m_Data.get()[_index({i++})] = element;
-                }
-                else {
-                    _kernel_set(m_Data, _index({i++}), element); 
-                }
+            if (H == Hardware::CPU) {
+                std::memcpy(m_Data.get(), list.begin(), m_Size * sizeof(T));
+            }
+            else {
+                hipMemcpyHtoD(m_Data.get(), list.begin(), m_Size * sizeof(T));
             }
         }
 
@@ -273,17 +270,26 @@ class Tensor {
                     LOG_ERROR("[ERROR] (Tensor::Tensor) Tensor sizes dont match!");
                 }
 
-                uint32_t j = 0;
-                for (auto element : rank_1_tensor) {
-                    if (H == Hardware::CPU) {
-                        m_Data.get()[_index({i, j++})] = element;
-                    }
-                    else {
-                        _kernel_set(m_Data, _index({i, j++}), element); 
-                    }
+                if (H == Hardware::CPU) {
+                    std::memcpy(m_Data.get() + i * list.size(), list.begin(), m_Size * sizeof(T));
+                }
+                else {
+                    hipMemcpyHtoD(m_Data.get() + i * list.size(), list.begin(), m_Size * sizeof(T));
                 }
 
                 i++;
+
+                // uint32_t j = 0;
+                // for (auto element : rank_1_tensor) {
+                //     if (H == Hardware::CPU) {
+                //         m_Data.get()[_index({i, j++})] = element;
+                //     }
+                //     else {
+                //         _kernel_set(m_Data, _index({i, j++}), element); 
+                //     }
+                // }
+
+                // i++;
             }
         } 
 
@@ -337,6 +343,7 @@ class Tensor {
             return m_Data.get()[0];
         }
 
+        template <EnableIf<H == Hardware::CPU> = 0>
         Tensor<T> operator[] (uint32_t index) {
             if (index > m_Shape[0]) {
                 LOG_ERROR("[ERROR] (Tensor::operator[]) Invalid index!");
@@ -384,10 +391,12 @@ class Tensor {
             return m_Data[_index({x, y, z})];
         }
         
+        template <EnableIf<H == Hardware::CPU> = 0>
         void set(T val, uint32_t x, uint32_t y, uint32_t z) {
             m_Data[_index({x, y, z})] = val;
         }
 
+        template <EnableIf<H == Hardware::CPU> = 0>
         void set(T val, uint32_t internal_index) {
             if (internal_index > m_Size-1) {
                 LOG_ERROR("[ERROR] (Tensor::set) Invalid internal access index!");
@@ -396,6 +405,7 @@ class Tensor {
             m_Data[internal_index] = val;
         }
 
+        template <EnableIf<H == Hardware::CPU> = 0>
         T get(uint32_t internal_index) {
             if (internal_index > m_Size - 1) {
                 LOG_ERROR("[ERROR] (Tensor::get) Invalid internal access index!");
