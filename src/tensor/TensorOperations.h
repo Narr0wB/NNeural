@@ -2,6 +2,8 @@
 #ifndef TENSOR_OPERATIONS_H
 #define TENSOR_OPERATIONS_H
 
+#include <omp.h>
+
 #include "Tensor.h"
 
 // Blank prefixes to add to parameters to improve code clarity
@@ -199,8 +201,14 @@ Tensor<T> scale(Tensor<T>& a, T scalar) {
 
 // Apply a particual function to each element in 
 template <typename T>
-void _tensor_apply(_IN_ T (*func)(T), _IN_ Tensor<T>& A, _OUT_ Tensor<T>& result) {
+void _tensor_apply(_IN_ T (*func)(T), _IN_ Tensor<T, Hardware::CPU>& A, _OUT_ Tensor<T, Hardware::CPU>& result) {
+    
 
+    #pragma omp parallel for num_threads(MAX_THREADS)
+    for (size_t i; i < A.size(); ++i) {
+        // Apply func() to each element of A
+        A.set(func(A.get(i)), i);
+    }
 }
 
 // Perform the forward propagation operation (in matrix/tensor form) and store result in Zm
@@ -209,7 +217,22 @@ void _tensor_apply(_IN_ T (*func)(T), _IN_ Tensor<T>& A, _OUT_ Tensor<T>& result
 // Broadcasting: Does not allow for broadcasting
 template <typename T>
 void _tensor_forward(_IN_ Tensor<T>& Wm, _IN_ Tensor<T>& An, _IN_ Tensor<T>& Bm, _OUT_ Tensor<T>& Zm) {
-     
+    if (Wm.rank() != 2 || An.rank() != 1 || Bm.rank() != 1 || Zm.rank() != 1) {
+        LOG_ERROR("(_tensor_forward) Invalid input tensors' rank!");
+    }
+
+    #pragma omp parallel for num_threads(MAX_THREADS) collapse(2)
+    for (size_t i = 0; i < Wm.shape()[0]; ++i) {
+
+        for (size_t j = 0; j < Wm.shape()[1]; ++j) {
+            if (j == 0) {
+                Zm(0, 0, i) += Bm(0, 0, i);
+            }
+
+            #pragma omp atomic
+            Zm(0, 0, i) += Wm(0, i, j) * An(0, 0, j);
+        }
+    }
 }
 
 

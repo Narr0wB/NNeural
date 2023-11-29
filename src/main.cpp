@@ -10,6 +10,10 @@ T ReLU(T in) {
     return in > 0 ? in : 0;
 }
 
+// TODO:
+// Implement the gpu kernels for forward and backward propagation
+// Check performance for host allocated device accessible memory (hipHostMalloc)
+
 int main(void) {
     Log::Init();
     
@@ -19,9 +23,11 @@ int main(void) {
         {1, 1, 1}
     };
 
-    Tensor<FP32, Hardware::CPU> t2 = {1, 2, 3};
+    Tensor<FP32> t2 = {1, 2, 3};
 
-    Layer<FP32, Hardware::CPU> layer({1}, {2}, ReLU<FP32>);
+    
+
+    //Layer<FP32, Hardware::CPU> layer({1}, {2}, ReLU<FP32>);
 
     //LOG_INFO("lil meech {}", t.broadcast({10, 2, 3})(9, 0, 2));
 
@@ -29,12 +35,6 @@ int main(void) {
     // assert(t2.size() == 3 * 4);gdb
 
     LOG_INFO("lil meech {}", t2(1));
-
-    Tensor<FP32> test = {
-        std::initializer_list<FP32>{1},
-        std::initializer_list<FP32>{2},
-        std::initializer_list<FP32>{2},
-    };
 
     // LOG_INFO("{}", a(0, 1, 1));
 
@@ -45,6 +45,8 @@ int main(void) {
 
     std::cout << added << std::endl;
     std::cout << added.shape() << std::endl;
+
+
 
     // for (int i = 0; i < 2 * 4; i++) {
     //     LOG_INFO("{}", multiplied.data()[i]);

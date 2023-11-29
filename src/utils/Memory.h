@@ -3,21 +3,22 @@
 #define MEMORY_H
 
 #include <memory>
+#define __HIP_PLATFORM_NVIDIA__
 #include <hip/hip_common.h>
 #include <hip/hip_runtime.h>
 // #include <cuda.h>
 // #include <thrust/device_vector.h>
 // #include <cuda_runtime.h>
 
-#include "utils/Hardware.h"
-#include "utils/Log.h"
+#include "Hardware.h"
+#include "Log.h"
 
 namespace memory {
 
 // Define the custon GPU allocator and deleter
 template <typename T>
 struct gpu_deleter {
-    void operator() (T* p) noexcept {
+    void operator() (T* p) const noexcept {
         if (hipFree(p) != hipSuccess) {
             LOG_ERROR("(GPU Deleter) Could not free gpu memory HIP ERROR: {}", hipGetLastError());
         }
@@ -45,15 +46,14 @@ template <typename T, Hardware H, typename... Args>
 std::shared_ptr<T> _make_shared(Args&&... args) {
     switch (H) {
         case Hardware::CPU: {
-            return std::make_shared<T>(args);
+            return std::make_shared<T>(std::forward<Args>(args)...);
             break;
         }
 
         case Hardware::GPU: {
             // Forward the parameters needed to construct T to the allocator (most likely a size_t)
-            T* ptr = gpu_allocator::allocate<T>(std::forward<Args>(args)...);
+            return std::shared_ptr<T>(gpu_allocator<T>::allocate(std::forward<Args>(args)...), gpu_deleter<T>());
 
-            return std::shared_ptr<T>(ptr, gpu_deleter);
             break;
         }
 

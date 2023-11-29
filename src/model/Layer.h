@@ -4,7 +4,7 @@
 
 #include "../tensor/Tensor.h"
 #include "../tensor/TensorOperations.h"
-#include "../tensor/Hardware.h"
+#include "../utils/Hardware.h"
 
 #define LA_SIGMOID 1
 #define LA_RELU    2
@@ -65,7 +65,8 @@ class Layer {
             switch (H) {
                 case Hardware::CPU: {
                     _tensor_forward(m_W, An, m_B, m_Z);
-                    _tensor_apply(m_Activation, m_Z, m_A)
+                    _tensor_apply(m_Activation, m_Z, m_A);
+                    
                     break;
                 }
 
@@ -87,10 +88,5 @@ class Layer {
 
         }
 };
-
-template <typename T>
-void _tensor_forward(Tensor<T>& Wn, Tensor<T>& An, Tensor<T>& Bn, Tensor<T>& result) {
-
-}
 
 #endif // LAYER_H

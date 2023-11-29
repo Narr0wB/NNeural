@@ -4,7 +4,8 @@
             "name": "Win32",
             "includePath": [
                 "${workspaceFolder}/**",
-                "C:\\Program Files\\AMD\\ROCm\\5.5\\include"
+                "D:\\AMD\\5.5\\include",
+                "C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.2/include"
             ],
             "defines": [
                 "_DEBUG",

@@ -248,7 +248,7 @@ class Tensor {
                 std::memcpy(m_Data.get(), list.begin(), m_Size * sizeof(T));
             }
             else {
-                hipMemcpyHtoD(m_Data.get(), list.begin(), m_Size * sizeof(T));
+                hipMemcpyHtoD((hipDeviceptr_t) m_Data.get(), (void*) list.begin(), m_Size * sizeof(T));
             }
         }
 
@@ -262,7 +262,7 @@ class Tensor {
             m_Size = list.size() * first->size();
 
 
-            m_Data = memory::_make_shared<T, H>(m_Size);
+            m_Data = memory::_make_shared<T, H>(m_Size * sizeof(T));
 
             uint32_t i = 0;
             for (auto rank_1_tensor : list) {
@@ -271,25 +271,13 @@ class Tensor {
                 }
 
                 if (H == Hardware::CPU) {
-                    std::memcpy(m_Data.get() + i * list.size(), list.begin(), m_Size * sizeof(T));
+                    std::memcpy(m_Data.get() + i * first->size(), rank_1_tensor.begin(), first->size() * sizeof(T));
                 }
                 else {
-                    hipMemcpyHtoD(m_Data.get() + i * list.size(), list.begin(), m_Size * sizeof(T));
+                    hipMemcpyHtoD((hipDeviceptr_t) m_Data.get() + i * first->size(), (void*) rank_1_tensor.begin(), first->size() * sizeof(T));
                 }
 
                 i++;
-
-                // uint32_t j = 0;
-                // for (auto element : rank_1_tensor) {
-                //     if (H == Hardware::CPU) {
-                //         m_Data.get()[_index({i, j++})] = element;
-                //     }
-                //     else {
-                //         _kernel_set(m_Data, _index({i, j++}), element); 
-                //     }
-                // }
-
-                // i++;
             }
         } 
 
@@ -303,7 +291,7 @@ class Tensor {
             m_Shape = TensorShape{list.size(), first->size(), second->size()};
             m_Size = list.size() * first->size() * second->size();
 
-            m_Data = memory::_make_shared<T, H>(m_Size);
+            m_Data = memory::_make_shared<T, H>(m_Size * sizeof(T));
             
             uint32_t i = 0;
             for (auto rank_2_tensor : list) {
@@ -316,15 +304,12 @@ class Tensor {
                     if (rank_1_tensor.size() != m_Shape[2]) {
                         LOG_ERROR("[ERROR] (Tensor::Tensor) Tensor sizes dont match!");
                     }
-                    
-                    uint32_t k = 0;
-                    for (auto element : rank_1_tensor) {
-                        if (H == Hardware::CPU) {
-                            m_Data.get()[_index({i, j, k++})] = element;
-                        }
-                        else {
-                            _kernel_set(m_Data, _index({i, j, k++}), element); 
-                        }
+
+                    if (H == Hardware::CPU) {
+                        std::memcpy(m_Data.get() + i * first->size() + j * second->size(), rank_1_tensor.begin(), second->size() * sizeof(T));
+                    }
+                    else {
+                        hipMemcpyHtoD(m_Data.get() + i * first->size() + j * second->size(), rank_1_tensor.begin(), second->size() * sizeof(T));
                     }
                     
                     j++;
@@ -334,7 +319,7 @@ class Tensor {
             }
         }
 
-        template <EnableIf<H == Hardware::CPU> = 0>
+        template <Hardware B = H, EnableIf<B == Hardware::CPU> = 0>
         operator T() { 
             if (m_Shape.size() != 1 && m_Shape[0] != 1) { 
                 LOG_ERROR("[ERROR] Only scalar tensors can be converted to numbers!"); 
@@ -343,7 +328,7 @@ class Tensor {
             return m_Data.get()[0];
         }
 
-        template <EnableIf<H == Hardware::CPU> = 0>
+        template <Hardware B = H, EnableIf<B == Hardware::CPU> = 0>
         Tensor<T> operator[] (uint32_t index) {
             if (index > m_Shape[0]) {
                 LOG_ERROR("[ERROR] (Tensor::operator[]) Invalid index!");
@@ -374,8 +359,8 @@ class Tensor {
             }
         }
 
-        template <EnableIf<H == Hardware::CPU> = 0>
-        T operator() (uint32_t x, uint32_t y = 0, uint32_t z = 0) {
+        template <Hardware B = H, EnableIf<B == Hardware::CPU> = 0>
+        T& operator() (uint32_t x, uint32_t y = 0, uint32_t z = 0) {
             if (rank() == 3 && x > m_Shape[rank() - 3]) {
                 LOG_ERROR("[ERROR] (Tensor::operator()) Invalid access x index!");
             }
@@ -388,32 +373,34 @@ class Tensor {
                 LOG_ERROR("[ERROR] (Tensor::operator()) Invalid access z index!");
             }
 
-            return m_Data[_index({x, y, z})];
+            return m_Data.get()[_index({x, y, z})];
         }
         
-        template <EnableIf<H == Hardware::CPU> = 0>
+        template <Hardware B = H, EnableIf<B == Hardware::CPU> = 0>
         void set(T val, uint32_t x, uint32_t y, uint32_t z) {
-            m_Data[_index({x, y, z})] = val;
+            m_Data.get()[_index({x, y, z})] = val;
         }
 
-        template <EnableIf<H == Hardware::CPU> = 0>
+        template <Hardware B = H, EnableIf<B == Hardware::CPU> = 0>
         void set(T val, uint32_t internal_index) {
             if (internal_index > m_Size-1) {
                 LOG_ERROR("[ERROR] (Tensor::set) Invalid internal access index!");
             }
 
-            m_Data[internal_index] = val;
+            m_Data.get()[internal_index] = val;
         }
 
-        template <EnableIf<H == Hardware::CPU> = 0>
+        template <Hardware B = H, EnableIf<B == Hardware::CPU> = 0>
         T get(uint32_t internal_index) {
             if (internal_index > m_Size - 1) {
                 LOG_ERROR("[ERROR] (Tensor::get) Invalid internal access index!");
             }
 
-            return m_Data[internal_index];
+            return m_Data.get()[internal_index];
         }
 
+        // If possible, broadcast to a specific shape
+        template <Hardware B = H, EnableIf<B == Hardware::CPU> = 0>
         BroadcastTensor<T> broadcast(TensorShape broadcast_shape) {
             size_t broadcast_rank       = broadcast_shape.size();
             size_t current_rank         = rank();
@@ -455,17 +442,34 @@ class Tensor {
 
         // TENSOR OPERATIONS --------------------------------------------------------------------------------------------------------------
         
-        template <typename B>
-        friend std::ostream& operator<<(std::ostream& out, Tensor<B>& tensor) {
+        template <typename B, Hardware G>
+        friend std::ostream& operator<<(std::ostream& out, Tensor<B, G>& tensor);
+};
+
+template <typename T, Hardware G>
+std::ostream& operator<<(std::ostream& out, Tensor<T, G>& tensor) {
+            std::shared_ptr<T> m_Data;
+
+            if (G == Hardware::CPU) {
+                m_Data = tensor.m_Data;
+            }
+            else {
+                T* host_ptr = new T[tensor.m_Size];
+
+                hipMemcpyDtoH((void*) host_ptr, (hipDeviceptr_t) tensor.m_Data.get(), tensor.m_Size * sizeof(T));
+
+                m_Data = std::shared_ptr<T>(host_ptr);
+            }
+
             switch (tensor.rank()) {
                 case 1: {
                     out << "{";
 
                     for (uint32_t i = 0; i < tensor.m_Shape[0] - 1; ++i) {
-                        out << tensor.m_Data[tensor._index({i})] << ", ";
+                        out << m_Data.get()[tensor._index({i})] << ", ";
                     }
 
-                    out << tensor.m_Data[tensor._index({tensor.m_Shape[0] - 1})];
+                    out << m_Data.get()[tensor._index({tensor.m_Shape[0] - 1})];
 
                     out << "}";
                     break;
@@ -478,10 +482,10 @@ class Tensor {
                         out << "{";
 
                         for (uint32_t i = 0; i < tensor.m_Shape[1] - 1; ++i) {
-                            out << tensor.m_Data[tensor._index({j, i})] << ", ";
+                            out << m_Data.get()[tensor._index({j, i})] << ", ";
                         }
 
-                        out << tensor.m_Data[tensor._index({j, tensor.m_Shape[1] - 1})] << "}";
+                        out << m_Data.get()[tensor._index({j, tensor.m_Shape[1] - 1})] << "}";
                         out << std::endl;
                     }
                     out << "}";
@@ -502,10 +506,10 @@ class Tensor {
                             out << "{";
 
                             for (uint32_t i = 0; i < tensor.m_Shape[2] - 1; ++i) {
-                                out << tensor.m_Data[tensor._index({k, j, i})] << ", ";
+                                out << m_Data.get()[tensor._index({k, j, i})] << ", ";
                             }
 
-                            out << tensor.m_Data[tensor._index({k, j, tensor.m_Shape[2] - 1})] << "}";
+                            out << m_Data.get()[tensor._index({k, j, tensor.m_Shape[2] - 1})] << "}";
                             out << std::endl;
                             out << "    ";
                         }
@@ -520,6 +524,5 @@ class Tensor {
 
             return out;
         }
-};
 
 #endif // TENSOR_H
