@@ -1,21 +1,26 @@
-CC=g++
-INCLUDE=-Iinclude/ -ID:/AMD/5.5/include -I"C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.2/include"
-COPTIONS=-g -lcuda -lcudart
-TARGET=build/test.exe
+CC= g++
+INCLUDE= -Iinclude/ -I"C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.3/include"
+LIBPATH= -Llib/
+LIB= -lopencl
+COPTIONS= -g
+TARGET= build/test.exe
 
-OBJS=build/main.o build/Log.o build/Tensor.o
+OBJS=build/main.o build/Log.o build/Tensor.o build/Memory.o
 
 
 $(TARGET): $(OBJS)
-	$(CC) $(OBJS) -o $(TARGET)
+	$(CC) $(LIBPATH) $(COPTIONS) $(OBJS) -o $(TARGET) $(LIB)
 
-build/main.o: src/main.cpp src/tensor/Tensor.h src/tensor/TensorOperations.h
+build/main.o: src/main.cpp 
 	$(CC) $(INCLUDE) $(COPTIONS) -c $< -o $@
  
 build/Log.o: src/utils/Log.cpp src/utils/Log.h
 	$(CC) $(INCLUDE) $(COPTIONS) -c $< -o $@
 
-build/Tensor.o: src/tensor/Tensor.cpp
+build/Tensor.o: src/tensor/Tensor.cpp src/tensor/Tensor.h src/tensor/TensorOperations.h 
+	$(CC) $(INCLUDE) $(COPTIONS) -c $< -o $@
+
+build/Memory.o: src/utils/Hardware.cpp src/utils/Memory.h src/utils/Hardware.h
 	$(CC) $(INCLUDE) $(COPTIONS) -c $< -o $@
 
 clean:

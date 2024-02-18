@@ -71,7 +71,11 @@
         "optional": "cpp",
         "bitset": "cpp",
         "map": "cpp",
-        "set": "cpp"
+        "set": "cpp",
+        "format": "cpp",
+        "locale": "cpp",
+        "complex": "cpp",
+        "cfenv": "cpp"
     },
     "C_Cpp.errorSquiggles": "enabled"
 }

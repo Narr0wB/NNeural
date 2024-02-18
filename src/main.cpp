@@ -17,40 +17,66 @@ T ReLU(T in) {
 int main(void) {
     Log::Init();
     
-    Tensor<FP32> t = {
-        {2, 3, 4},
-        {1, 1, 1},
-        {1, 1, 1}
-    };
-
-    Tensor<FP32> t2 = {1, 2, 3};
-
+    // Tensor<FP32> t = {
+    //     {2, 3, 4},
+    //     {1, 1, 1},
+    //     {1, 1, 1}
+    // };
     
+    // Simple vector add
+    LOG_INFO("Using device: ");
+    std::cout << default_gpu.getInfo<CL_DEVICE_NAME>() << std::endl;
 
-    //Layer<FP32, Hardware::CPU> layer({1}, {2}, ReLU<FP32>);
+    cl::Context ctx(default_gpu);
 
-    //LOG_INFO("lil meech {}", t.broadcast({10, 2, 3})(9, 0, 2));
+    cl::Program::Sources source;
 
-    // assert(t.size() == 2 * 3);
-    // assert(t2.size() == 3 * 4);gdb
+    auto src = load_kernel("../test.cl");
+    source.push_back({src.c_str(), src.size()});
 
-    LOG_INFO("lil meech {}", t2(1));
+    cl::Program program(ctx, source);
+    if (program.build({default_gpu}) != CL_SUCCESS) {
+        LOG_ERROR("Could not compile kernel");
+    }
 
-    // LOG_INFO("{}", a(0, 1, 1));
+    int N = 1000000;
 
+    cl::Buffer a_buffer(ctx, CL_MEM_READ_WRITE, sizeof(int) * N);
+    cl::Buffer b_buffer(ctx, CL_MEM_READ_WRITE, sizeof(int) * N);
+    cl::Buffer c_buffer(ctx, CL_MEM_READ_WRITE, sizeof(int) * N);
 
-    Tensor<FP32> added = scale(t, 0.5f);
+    int* A = new int[N];
+    int* B = new int[N];
+    for (int i = 0; i < N; ++i) {
+        A[i] = 5;
+        B[i] = 3;
+    }
+
+    cl::CommandQueue queue(ctx, default_gpu);
+
+    queue.enqueueWriteBuffer(a_buffer, CL_TRUE, 0, sizeof(A[0]) * N, A);
+    queue.enqueueWriteBuffer(b_buffer, CL_TRUE, 0, sizeof(B[0]) * N, B);
+
+    cl::Kernel simple_add(program, "test_kernel");
+    simple_add.setArg(0, a_buffer);
+    simple_add.setArg(1, b_buffer);
+    simple_add.setArg(2, c_buffer);
+    simple_add.setArg(3, sizeof(int), &N);
+
+    auto start = std::chrono::high_resolution_clock::now();
     
-    // LOG_INFO("Multiplying a ({}, {}, {}) Tensor with a ({}, {}, {}) Tensor resulting in a rank {} Tensor", 1, 1, t2.shape()[0], 1, t.shape()[0], t.shape()[1], multiplied.rank());
+    for (int i = 0; i < 100; ++i) queue.enqueueNDRangeKernel(simple_add, cl::NullRange, cl::NDRange(1024), cl::NullRange);
 
-    std::cout << added << std::endl;
-    std::cout << added.shape() << std::endl;
+    int* C = new int[N];
+    queue.enqueueReadBuffer(c_buffer, CL_TRUE, 0, sizeof(int) * N, C);
+    auto stop = std::chrono::high_resolution_clock::now();
 
-
-
-    // for (int i = 0; i < 2 * 4; i++) {
-    //     LOG_INFO("{}", multiplied.data()[i]);
+    // std::cout << "result: {";
+    // for (int i = 0; i < N; i++) {
+    //     std::cout << C[i] << " ";
     // }
+    // std::cout << "}" << std::endl;
+    LOG_INFO("It took {}us to execute the kernel", std::chrono::duration_cast<std::chrono::microseconds>(stop - start).count());
 
     return 0;
 }

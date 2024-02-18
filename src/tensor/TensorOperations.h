@@ -6,9 +6,13 @@
 
 #include "Tensor.h"
 
-// Blank prefixes to add to parameters to improve code clarity
+// Blank function parameters prefixes to improve code readability
 #define _IN_ 
 #define _OUT_
+
+class TensorOperation {
+    
+};
 
 // Computes the matrix multiplication between two tensors (any tensor with rank bigger than 2 is considered a collection of matrices)
 // Broadcasting: Allows for broadcasting

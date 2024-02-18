@@ -136,7 +136,9 @@ template <typename T, Hardware H = Hardware::CPU>
 class Tensor {
     private:
         TensorShape m_Shape;
-        size_t m_Size = 1;
+        TensorShape m_IndexOffsets;
+
+        size_t m_Size;
         std::shared_ptr<T> m_Data;
 
         // Get data's index in the internal buffer
@@ -146,10 +148,8 @@ class Tensor {
                 //LOG_ERROR("DEBUG: EROR");
             }
 
-            for (int i = 0; i < m_Shape.size(); ++i) {
-                auto current_parameter = *(parameters.end() - i - 1);
-
-                index += current_parameter * std::accumulate(m_Shape.end() - i, m_Shape.end(), 1, std::multiplies<T>());
+            for (int i = 0; i < parameters.size(); ++i) {
+                index += *(parameters.begin() + i) * m_IndexOffsets[i];
             }
 
             return index;
@@ -170,11 +170,17 @@ class Tensor {
                 LOG_ERROR("[ERROR] (Tensor::Tensor) The maximum supported rank is 3!");
             }
 
-            for (uint32_t dimentions : shape) {
+            for (uint32_t dimentions : m_Shape) {
                 m_Size *= dimentions;
             }
 
-            m_Data = memory::_make_shared<T, H>(m_Size);
+            for (int i = 1; i < m_Shape.size(); ++i) {
+                // Calculate the offets for a particular dimention in the memory buffer
+                m_IndexOffsets.push_back(std::accumulate(m_Shape.begin() + i, m_Shape.end(), 1, std::multiplies<T>()));
+            }
+            m_IndexOffsets.push_back(1);
+
+            m_Data = memory::_make_shared<T>(m_Size);
         }
 
         Tensor(T val) {
@@ -183,9 +189,10 @@ class Tensor {
             }
 
             m_Shape = {1};
+            m_IndexOffsets = {1};
             m_Size = 1;
 
-            m_Data = memory::_make_shared<T, H>(m_Size);
+            m_Data = memory::_make_shared<T>(m_Size);
 
             if (H == Hardware::CPU) {
                 m_Data.get()[0] = val;
@@ -196,44 +203,6 @@ class Tensor {
 
         }
 
-        Tensor(uint32_t x, uint32_t y = 0, uint32_t z = 0) {
-            if (!(typeid(T) == typeid(FP32) || typeid(T) == typeid(FP64) || typeid(T) == typeid(I32) || typeid(T) == typeid(I64))) {
-                LOG_ERROR("[ERROR] (Tensor::Tensor) Unsupported tensor type!");
-            }
-
-            // If one of the indices is one, then ignore said index as it does not provide useful information
-            if (x == 1) {x = y; y = z; z = 0;}
-            if (y == 1) {y = 0;}
-            if (z == 1) {z = 0;}
-
-            if (x == 0) {
-                LOG_ERROR("[ERROR] (Tensor::Tensor) Invalid initialization index!");
-            }
-
-            if (y == 0 && z == 0) {
-                m_Shape = TensorShape{x};
-                m_Size = x;
-
-                m_Data = memory::_make_shared<T, H>(m_Size);
-
-                return;
-            }
-
-            if (z == 0) {
-                m_Shape = TensorShape{x, y};
-                m_Size = x*y;
-
-                m_Data = memory::_make_shared<T, H>(m_Size);
-
-                return;
-            }
-
-            m_Shape = TensorShape{x, y, z};
-            m_Size = x*y*z;
-
-            m_Data = memory::_make_shared<T, H>(m_Size);
-        }
-
         Tensor(std::initializer_list<T> list) {
             if (!(typeid(T) == typeid(FP32) || typeid(T) == typeid(FP64) || typeid(T) == typeid(I32) || typeid(T) == typeid(I64))) {
                 LOG_ERROR("[ERROR] (Tensor::Tensor) Unsupported tensor type!");
@@ -242,13 +211,19 @@ class Tensor {
             m_Shape = TensorShape{list.size()};
             m_Size = list.size();
 
-            m_Data = memory::_make_shared<T, H>(m_Size * sizeof(T));
+            for (int i = 1; i < m_Shape.size(); ++i) {
+                // Calculate the offets for a particular dimention in the memory buffer
+                m_IndexOffsets.push_back(std::accumulate(m_Shape.begin() + i, m_Shape.end(), 1, std::multiplies<T>()));
+            }
+            m_IndexOffsets.push_back(1);
+
+            m_Data = memory::_make_shared<T>(m_Size * sizeof(T));
 
             if (H == Hardware::CPU) {
                 std::memcpy(m_Data.get(), list.begin(), m_Size * sizeof(T));
             }
             else {
-                hipMemcpyHtoD((hipDeviceptr_t) m_Data.get(), (void*) list.begin(), m_Size * sizeof(T));
+                // hipMemcpyHtoD((hipDeviceptr_t) m_Data.get(), (void*) list.begin(), m_Size * sizeof(T));
             }
         }
 
@@ -261,8 +236,13 @@ class Tensor {
             m_Shape = TensorShape{list.size(), first->size()};
             m_Size = list.size() * first->size();
 
+            for (int i = 1; i < m_Shape.size(); ++i) {
+                // Calculate the offets for a particular dimention in the memory buffer
+                m_IndexOffsets.push_back(std::accumulate(m_Shape.begin() + i, m_Shape.end(), 1, std::multiplies<T>()));
+            }
+            m_IndexOffsets.push_back(1);
 
-            m_Data = memory::_make_shared<T, H>(m_Size * sizeof(T));
+            m_Data = memory::_make_shared<T>(m_Size * sizeof(T));
 
             uint32_t i = 0;
             for (auto rank_1_tensor : list) {
@@ -274,7 +254,7 @@ class Tensor {
                     std::memcpy(m_Data.get() + i * first->size(), rank_1_tensor.begin(), first->size() * sizeof(T));
                 }
                 else {
-                    hipMemcpyHtoD((hipDeviceptr_t) m_Data.get() + i * first->size(), (void*) rank_1_tensor.begin(), first->size() * sizeof(T));
+                    // hipMemcpyHtoD((hipDeviceptr_t) m_Data.get() + i * first->size(), (void*) rank_1_tensor.begin(), first->size() * sizeof(T));
                 }
 
                 i++;
@@ -291,7 +271,13 @@ class Tensor {
             m_Shape = TensorShape{list.size(), first->size(), second->size()};
             m_Size = list.size() * first->size() * second->size();
 
-            m_Data = memory::_make_shared<T, H>(m_Size * sizeof(T));
+            for (int i = 1; i < m_Shape.size(); ++i) {
+                // Calculate the offets for a particular dimention in the memory buffer
+                m_IndexOffsets.push_back(std::accumulate(m_Shape.begin() + i, m_Shape.end(), 1, std::multiplies<T>()));
+            }
+            m_IndexOffsets.push_back(1);
+
+            m_Data = memory::_make_shared<T>(m_Size * sizeof(T));
             
             uint32_t i = 0;
             for (auto rank_2_tensor : list) {
@@ -309,7 +295,7 @@ class Tensor {
                         std::memcpy(m_Data.get() + i * first->size() + j * second->size(), rank_1_tensor.begin(), second->size() * sizeof(T));
                     }
                     else {
-                        hipMemcpyHtoD(m_Data.get() + i * first->size() + j * second->size(), rank_1_tensor.begin(), second->size() * sizeof(T));
+                        // hipMemcpyHtoD(m_Data.get() + i * first->size() + j * second->size(), rank_1_tensor.begin(), second->size() * sizeof(T));
                     }
                     
                     j++;
@@ -456,7 +442,7 @@ std::ostream& operator<<(std::ostream& out, Tensor<T, G>& tensor) {
             else {
                 T* host_ptr = new T[tensor.m_Size];
 
-                hipMemcpyDtoH((void*) host_ptr, (hipDeviceptr_t) tensor.m_Data.get(), tensor.m_Size * sizeof(T));
+                // hipMemcpyDtoH((void*) host_ptr, (hipDeviceptr_t) tensor.m_Data.get(), tensor.m_Size * sizeof(T));
 
                 m_Data = std::shared_ptr<T>(host_ptr);
             }
