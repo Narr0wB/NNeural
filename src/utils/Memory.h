@@ -15,26 +15,82 @@
 
 namespace memory {
 
-// template <typename T>
-// class buffer {
-//     private:
-//         cl::Device m_CLDevice;
-//         cl::Buffer m_CLBuffer;
+template <typename T>
+class Buffer {
+    private:
+        // Host side memory
+        T* _HBuffer;
+        bool _HMemOwned;
 
-//         bool m_OwnedMemory;
+        // Device side memory
+        cl::Device _CLDevice;
+        cl::Buffer _CLBuffer;
+        bool _DMemOwned;
 
-//     public:
-//         // The parameter <size> refers to the number of T elemets to be stored in the buffer 
-//         buffer(cl::Device d, size_t size) : m_CLDevice(d), m_CLBuffer(cl::Context(d), size * sizeof(T)) {
+        size_t _BufferSize;
 
-//         }
+        template <typename G>
+        struct BufferIterator {
+            using iterator_category = std::bidirectional_iterator_tag;                      
+            using difference_type = std::ptrdiff_t;
+            using value_type = G;
+            using host_pointer = G*;
+            using dev_pointer = std::uintptr_t;
+            using reference = G&;
 
-//         buffer(size_t size) {}
+            private:
+                host_pointer _ptr;
 
-//         T() const {
-            
-//         }
-// };
+                BufferIterator(pointer p, difference_type off) : _ptr(p + off) {};
+
+            public:
+                refernce operator*() const { return *_ptr; }   
+                host_pointer operator->() { return _ptr; }    
+
+                BufferIterator& operator++() { _ptr++; return *this; }
+                BufferIterator& operator--() { _ptr--; return *this; }
+                BufferIterator& operator+=(difference_type offset) { _ptr += offset; return *this; }
+                BufferIterator& operator-=(difference_type offset) { _ptr -= offset; return *this; }
+                BufferIterator operator+(difference_type offset) { return BufferIterator(_ptr + offset); }
+                BufferIterator operator-(difference_type offset) { return BufferIterator(_ptr - offset); }
+
+                friend bool operator==(const BufferIterator& a, const BufferIterator& b) { return a._ptr == b._ptr; }  
+                friend bool operator!=(const BufferIterator& a, const BufferIterator& b) { return a._ptr != b._ptr; } 
+                friend BufferIterator operator-(const BufferIterator& a, const BufferIterator& b) { static_assert(a._ptr > b._ptr); return a._ptr - b._ptr; }
+        };
+
+    public:
+
+        // The parameter <size> refers to the number of T elemets to be stored in the buffer
+        Buffer(size_t size, cl::Device d) : 
+        _BufferSize(size * sizeof(T)), 
+        _CLDevice(d), 
+        _CLBuffer(cl::Context(d), size * sizeof(T)),
+        _DMemOwned(true) {
+        }
+
+        Buffer(size_t size) : 
+        _BufferSize(size * sizeof(T)),
+        _HBuffer(new T[size])
+        _HMemOwned(true) {
+        }
+
+        // Create sub buffer that does NOT own the underlying memory
+        Buffer(T* host_ptr, size_t size) :
+        _BufferSize(size * sizeof(T)),
+        _HBuffer(host_ptr),
+        _HMemOwned(false), {
+        }
+
+        // Create a sub buffer which does not own the memory from a slice of another buffer 
+        Buffer(const BufferIterator<T>& begin, const BufferIterator<T>& end) :
+        _BufferSize((begin - end) * sizeof(T)) {
+            if (_HBuffer != NULL) {
+
+            }
+
+        }
+};
 
 // Define the custon GPU allocator and deleter
 template <typename T>
