@@ -13,21 +13,24 @@
 #include "Hardware.h"
 #include "Log.h"
 
-namespace memory {
+namespace Memory {
 
 template <typename T>
 class Buffer {
     private:
+        bool m_MemOwned;
+        bool m_HostOwnsDeviceMem;
+
         // Host side memory
-        T* _HBuffer;
-        bool _HMemOwned;
+        T* m_HBuffer;
+        bool m_HMemOwned;
 
         // Device side memory
-        cl::Device _CLDevice;
-        cl::Buffer _CLBuffer;
-        bool _DMemOwned;
+        Device m_Device;
+        cl::Buffer m_CLBuffer;
+        bool m_DMemOwned;
 
-        size_t _BufferSize;
+        size_t m_BufferSize;
 
         template <typename G>
         struct BufferIterator {
@@ -63,32 +66,42 @@ class Buffer {
 
         // The parameter <size> refers to the number of T elemets to be stored in the buffer
         Buffer(size_t size, cl::Device d) : 
-        _BufferSize(size * sizeof(T)), 
-        _CLDevice(d), 
-        _CLBuffer(cl::Context(d), size * sizeof(T)),
-        _DMemOwned(true) {
+        m_BufferSize(size * sizeof(T)), 
+        m_CLBuffer(cl::Context(d), size * sizeof(T)),
+        m_DMemOwned(true),
+        m_HMemOwned(false) {
+            m_HBuffer = (T*) m_Device.GetQueue().enqueueMapBuffer(m_CLBuffer, true, CL_MEM_ALLOC_HOST_PTR, 0, size * sizeof(T));
         }
 
         Buffer(size_t size) : 
-        _BufferSize(size * sizeof(T)),
-        _HBuffer(new T[size])
-        _HMemOwned(true) {
+        m_BufferSize(size * sizeof(T)),
+        m_HBuffer(new T[size]),
+        m_HMemOwned(true) {
         }
 
         // Create sub buffer that does NOT own the underlying memory
-        Buffer(T* host_ptr, size_t size) :
-        _BufferSize(size * sizeof(T)),
-        _HBuffer(host_ptr),
-        _HMemOwned(false), {
-        }
+        // Buffer(T* host_ptr, size_t size) :
+        // m_BufferSize(size * sizeof(T)),
+        // m_HBuffer(host_ptr),
+        // m_HMemOwned(false), {
+        // }
 
         // Create a sub buffer which does not own the memory from a slice of another buffer 
         Buffer(const BufferIterator<T>& begin, const BufferIterator<T>& end) :
-        _BufferSize((begin - end) * sizeof(T)) {
-            if (_HBuffer != NULL) {
-
+        m_BufferSize((begin - end) * sizeof(T)),
+        m_HMemOwned(false),
+        m_DMemOwned(false) {
+            if (m_HBuffer != NULL) {
+                
             }
 
+        }
+
+        ~Buffer() {
+            if (m_MemOwned) {
+                if (m_HBuffer != NULL)
+                    delete m_HBuffer;
+            }
         }
 };
 

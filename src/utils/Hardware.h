@@ -18,6 +18,25 @@ enum class Hardware {
     GPU,
 };
 
+class Device {
+    private:
+        cl::Device _device;
+        cl::Context _device_context;
+        cl::CommandQueue _device_queue;
+
+    public:
+
+        Device(cl::Device d) : 
+        _device(d),
+        _device_context(d),
+        _device_queue(_device_context, d) {
+        }
+
+        Device() {};
+
+        inline const cl::CommandQueue& GetQueue() { return _device_queue; };
+};
+
 // inline cl::Platform OpenCLInit() {
 //     std::vector<cl::Platform> platforms;
 //     cl::Platform::get(&platforms);
