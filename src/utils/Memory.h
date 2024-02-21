@@ -3,15 +3,32 @@
 #define MEMORY_H
 
 #include <memory>
-#define __HIP_PLATFORM_NVIDIA__
 // #include <hip/hip_common.h>
 // #include <hip/hip_runtime.h>
 // #include <cuda.h>
 // #include <thrust/device_vector.h>
 // #include <cuda_runtime.h>
-
-#include "Hardware.h"
 #include "Log.h"
+#include "Hardware.h"
+
+class Device {
+    private:
+        cl::Device _device;
+        cl::Context _device_context;
+        cl::CommandQueue _device_queue;
+
+    public:
+
+        Device(cl::Device d) : 
+        _device(d),
+        _device_context(d),
+        _device_queue(_device_context, d) {
+        }
+
+        Device() {};
+
+        inline const cl::CommandQueue& GetQueue() { return _device_queue; };
+};
 
 namespace Memory {
 
@@ -19,7 +36,7 @@ template <typename T>
 class Buffer {
     private:
         bool m_MemOwned;
-        bool m_HostOwnsDeviceMem;
+        bool m_HostMemOwnedByMapping;
 
         // Host side memory
         T* m_HBuffer;
@@ -38,45 +55,59 @@ class Buffer {
             using difference_type = std::ptrdiff_t;
             using value_type = G;
             using host_pointer = G*;
+            using dev_data = cl::Buffer&;
             using dev_pointer = std::uintptr_t;
             using reference = G&;
 
             private:
                 host_pointer _ptr;
+                dev_pointer _dev_ptr;
+                dev_data _dev_data;
 
-                BufferIterator(pointer p, difference_type off) : _ptr(p + off) {};
+                // BufferIterator(host_pointer p, difference_type off) : _ptr(p + off) {};
+                BufferIterator(host_pointer p) : _ptr(p) {}
+                // BufferIterator(dev_pointer d_p, difference_type off) : _ptr(NULL), _dev_ptr(d_p + off) {}
+                BufferIterator(dev_pointer d_p, dev_data& buf_ref) : _ptr(NULL), _dev_ptr(d_p), _dev_data(buf_ref) {}
+                // BufferIterator(host_pointer p, dev_pointer d_p, difference_type off) : _ptr(p + off), _dev_ptr(d_p + off) {}
+                BufferIterator(host_pointer p, dev_pointer d_p, dev_data& buf_ref) : _ptr(p), _dev_ptr(d_p), _dev_data(buf_ref) {}
+
 
             public:
-                refernce operator*() const { return *_ptr; }   
-                host_pointer operator->() { return _ptr; }    
+                //reference operator*() const { assert(_ptr != NULL); return *_ptr; }   
+                //host_pointer operator->() { assert(_ptr != NULL); return _ptr; } 
 
-                BufferIterator& operator++() { _ptr++; return *this; }
-                BufferIterator& operator--() { _ptr--; return *this; }
-                BufferIterator& operator+=(difference_type offset) { _ptr += offset; return *this; }
-                BufferIterator& operator-=(difference_type offset) { _ptr -= offset; return *this; }
-                BufferIterator operator+(difference_type offset) { return BufferIterator(_ptr + offset); }
-                BufferIterator operator-(difference_type offset) { return BufferIterator(_ptr - offset); }
+                dev_pointer const dev_ptr() { return _dev_ptr; }
+                host_pointer const host_ptr() { return _ptr; }
 
-                friend bool operator==(const BufferIterator& a, const BufferIterator& b) { return a._ptr == b._ptr; }  
-                friend bool operator!=(const BufferIterator& a, const BufferIterator& b) { return a._ptr != b._ptr; } 
-                friend BufferIterator operator-(const BufferIterator& a, const BufferIterator& b) { static_assert(a._ptr > b._ptr); return a._ptr - b._ptr; }
+                BufferIterator& operator++() { _ptr++; _dev_ptr++; return *this; }
+                BufferIterator& operator--() { _ptr--; _dev_ptr--; return *this; }
+                BufferIterator& operator+=(difference_type offset) { _ptr += offset; _dev_ptr += offset; return *this; }
+                BufferIterator& operator-=(difference_type offset) { _ptr -= offset; _dev_ptr -= offset; return *this; }
+                BufferIterator operator+(difference_type offset) { BufferIterator temp = *this; temp._ptr += offset; temp._dev_ptr += offset; return temp; }
+                BufferIterator operator-(difference_type offset) { BufferIterator temp = *this; temp._ptr -= offset; temp._dev_ptr += offset; return temp; }
+
+                friend bool operator==(const BufferIterator& a, const BufferIterator& b) { return a._ptr == b._ptr && a._dev_ptr == b._dev_ptr; }  
+                friend bool operator!=(const BufferIterator& a, const BufferIterator& b) { return a._ptr != b._ptr || a._dev_ptr != b._dev_ptr; } 
+                friend BufferIterator operator-(const BufferIterator& a, const BufferIterator& b) { static_assert(a._ptr >= b._ptr && a._dev_ptr >= b._dev_ptr); return BufferIterator(a._ptr - b._ptr); }
         };
 
     public:
 
         // The parameter <size> refers to the number of T elemets to be stored in the buffer
-        Buffer(size_t size, cl::Device d) : 
+        Buffer(size_t size, Device d) : 
         m_BufferSize(size * sizeof(T)), 
-        m_CLBuffer(cl::Context(d), size * sizeof(T)),
-        m_DMemOwned(true),
-        m_HMemOwned(false) {
+        m_Device(d),
+        m_CLBuffer(d._device_context, size * sizeof(T)),
+        m_MemOwned(true), 
+        m_HostMemOwnedByMapping(true) {
             m_HBuffer = (T*) m_Device.GetQueue().enqueueMapBuffer(m_CLBuffer, true, CL_MEM_ALLOC_HOST_PTR, 0, size * sizeof(T));
         }
 
         Buffer(size_t size) : 
         m_BufferSize(size * sizeof(T)),
         m_HBuffer(new T[size]),
-        m_HMemOwned(true) {
+        m_MemOwned(true),
+        m_HostMemOwnedByMapping(false) {
         }
 
         // Create sub buffer that does NOT own the underlying memory
@@ -89,8 +120,7 @@ class Buffer {
         // Create a sub buffer which does not own the memory from a slice of another buffer 
         Buffer(const BufferIterator<T>& begin, const BufferIterator<T>& end) :
         m_BufferSize((begin - end) * sizeof(T)),
-        m_HMemOwned(false),
-        m_DMemOwned(false) {
+        m_MemOwned(false) {
             if (m_HBuffer != NULL) {
                 
             }
@@ -99,8 +129,14 @@ class Buffer {
 
         ~Buffer() {
             if (m_MemOwned) {
-                if (m_HBuffer != NULL)
-                    delete m_HBuffer;
+                if (m_HostMemOwnedByMapping) {
+                    cl::ContextQueue q;
+                    m_Device.GetQueue().enqueueUnmapMemory();
+                }
+                else {
+                    if (m_HBuffer != NULL)
+                        delete m_HBuffer;
+                }
             }
         }
 };
