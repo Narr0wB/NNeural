@@ -1,5 +1,5 @@
 CC= g++
-INCLUDE= -Iinclude/ -I"C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.3/include"
+INCLUDE= -Iinclude/ -I"C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.3/include" -I/opt/cuda/include
 LIBPATH= -Llib/
 LIB= -lopencl
 COPTIONS= -g -O0
@@ -25,7 +25,7 @@ build/Memory.o: src/utils/Hardware.cpp src/utils/Memory.h src/utils/Hardware.h
 
 clean:
 	rm build/*.o
-	powershell rm build/*.exe
+	# powershell rm build/*.exe
 
 # clean:
 # 	rm $(TARGET)

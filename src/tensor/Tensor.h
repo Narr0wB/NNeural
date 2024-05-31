@@ -4,7 +4,6 @@
 
 #include <vector>
 #include <iostream>
-#include <Memory>
 #include <functional>
 #include <numeric>
 
@@ -18,119 +17,119 @@
 typedef std::vector<size_t> TensorShape;
 std::ostream& operator<<(std::ostream& out, TensorShape shape);
 
-template <typename T>
-class BroadcastTensor {
-    private:
-        TensorShape m_Shape;
-        TensorShape m_OriginalShape;
-
-        size_t m_Size;
-        size_t m_OriginalSize;
-        std::shared_ptr<T[]> m_Data; 
-
-        // Get data's index in the internal buffer
-        size_t _index(std::initializer_list<uint32_t> parameters) const {
-            size_t index = 0;
-            if (parameters.size() != m_OriginalShape.size()) {
-                //LOG_ERROR("DEBUG: EROR");
-            }
-
-            for (int i = 0; i < m_OriginalShape.size(); ++i) {
-                if (m_OriginalShape[rank() - i - 1] != 1) {
-                    auto current_parameter = *(parameters.end() - i - 1);
-                
-                    index += current_parameter * std::accumulate(m_OriginalShape.end() - i, m_OriginalShape.end(), 1, std::multiplies<T>());
-                }
-            }
-
-            return index;
-        }
-
-    public:
-
-        BroadcastTensor(std::shared_ptr<T[]>& original_data, size_t size, size_t original_size, TensorShape& shape, TensorShape& original_shape) : m_Data(original_data), m_Shape(shape), m_OriginalShape(original_shape), m_Size(size), m_OriginalSize(original_size) {}
-
-        T operator() (uint32_t x, uint32_t y, uint32_t z) {
-            return m_Data[_index({x, y, z})];
-        }
-
-        T get(uint32_t internal_index) {
-            if (internal_index > m_Size - 1) {
-                LOG_ERROR("[ERROR] (Tensor::get) Invalid internal access index!");
-            }
-
-            return m_Data[internal_index % m_OriginalSize];
-        }
-
-        inline size_t rank() { return m_Shape.size(); }
-        inline FP64 identifier() { return ((FP64)m_Size / (m_Size + 3)) * rank(); }
-
-        template <typename B>
-        friend std::ostream& operator<<(std::ostream& out, BroadcastTensor<B>& tensor) {
-            switch (tensor.rank()) {
-                case 1: {
-                    out << "{";
-
-                    for (uint32_t i = 0; i < tensor.m_Shape[0] - 1; ++i) {
-                        out << tensor.m_Data[tensor._index({i})] << ", ";
-                    }
-
-                    out << tensor.m_Data[tensor._index({tensor.m_Shape[0] - 1})];
-
-                    out << "}";
-                    break;
-                }
-
-                case 2: {
-                    out << "{" << std::endl;
-                    for (uint32_t j = 0; j < tensor.m_Shape[0]; ++j) {
-                        out << "    ";
-                        out << "{";
-
-                        for (uint32_t i = 0; i < tensor.m_Shape[1] - 1; ++i) {
-                            out << tensor.m_Data[tensor._index({j, i})] << ", ";
-                        }
-
-                        out << tensor.m_Data[tensor._index({j, tensor.m_Shape[1] - 1})] << "}";
-                        out << std::endl;
-                    }
-                    out << "}";
-                    break;
-                }
-
-                case 3: {
-                    out << "{" << std::endl;
-
-                    for (uint32_t k = 0; k < tensor.m_Shape[0]; ++k) {
-
-                        out << "    ";
-                        out << "{" << std::endl;
-                        out << "    ";
-
-                        for (uint32_t j = 0; j < tensor.m_Shape[1]; ++j) {
-                            out << "    ";
-                            out << "{";
-
-                            for (uint32_t i = 0; i < tensor.m_Shape[2] - 1; ++i) {
-                                out << tensor.m_Data[tensor._index({k, j, i})] << ", ";
-                            }
-
-                            out << tensor.m_Data[tensor._index({k, j, tensor.m_Shape[2] - 1})] << "}";
-                            out << std::endl;
-                            out << "    ";
-                        }
-
-                        out << "}" << std::endl;
-                    }
-
-                    out << "}";
-                    break;
-                }
-            }
-
-            return out;
-        }
-};
+// template <typename T>
+// class BroadcastTensor {
+//     private:
+//         TensorShape m_Shape;
+//         TensorShape m_OriginalShape;
+//
+//         size_t m_Size;
+//         size_t m_OriginalSize;
+//         std::shared_ptr<T[]> m_Data; 
+//
+//         // Get data's index in the internal buffer
+//         size_t _index(std::initializer_list<uint32_t> parameters) const {
+//             size_t index = 0;
+//             if (parameters.size() != m_OriginalShape.size()) {
+//                 //LOG_ERROR("DEBUG: EROR");
+//             }
+//
+//             for (int i = 0; i < m_OriginalShape.size(); ++i) {
+//                 if (m_OriginalShape[rank() - i - 1] != 1) {
+//                     auto current_parameter = *(parameters.end() - i - 1);
+//                 
+//                     index += current_parameter * std::accumulate(m_OriginalShape.end() - i, m_OriginalShape.end(), 1, std::multiplies<T>());
+//                 }
+//             }
+//
+//             return index;
+//         }
+//
+//     public:
+//
+//         BroadcastTensor(std::shared_ptr<T[]>& original_data, size_t size, size_t original_size, TensorShape& shape, TensorShape& original_shape) : m_Data(original_data), m_Shape(shape), m_OriginalShape(original_shape), m_Size(size), m_OriginalSize(original_size) {}
+//
+//         T operator() (uint32_t x, uint32_t y, uint32_t z) {
+//             return m_Data[_index({x, y, z})];
+//         }
+//
+//         T get(uint32_t internal_index) {
+//             if (internal_index > m_Size - 1) {
+//                 LOG_ERROR("[ERROR] (Tensor::get) Invalid internal access index!");
+//             }
+//
+//             return m_Data[internal_index % m_OriginalSize];
+//         }
+//
+//         inline size_t rank() { return m_Shape.size(); }
+//         inline FP64 identifier() { return ((FP64)m_Size / (m_Size + 3)) * rank(); }
+//
+//         template <typename B>
+//         friend std::ostream& operator<<(std::ostream& out, BroadcastTensor<B>& tensor) {
+//             switch (tensor.rank()) {
+//                 case 1: {
+//                     out << "{";
+//
+//                     for (uint32_t i = 0; i < tensor.m_Shape[0] - 1; ++i) {
+//                         out << tensor.m_Data[tensor._index({i})] << ", ";
+//                     }
+//
+//                     out << tensor.m_Data[tensor._index({tensor.m_Shape[0] - 1})];
+//
+//                     out << "}";
+//                     break;
+//                 }
+//
+//                 case 2: {
+//                     out << "{" << std::endl;
+//                     for (uint32_t j = 0; j < tensor.m_Shape[0]; ++j) {
+//                         out << "    ";
+//                         out << "{";
+//
+//                         for (uint32_t i = 0; i < tensor.m_Shape[1] - 1; ++i) {
+//                             out << tensor.m_Data[tensor._index({j, i})] << ", ";
+//                         }
+//
+//                         out << tensor.m_Data[tensor._index({j, tensor.m_Shape[1] - 1})] << "}";
+//                         out << std::endl;
+//                     }
+//                     out << "}";
+//                     break;
+//                 }
+//
+//                 case 3: {
+//                     out << "{" << std::endl;
+//
+//                     for (uint32_t k = 0; k < tensor.m_Shape[0]; ++k) {
+//
+//                         out << "    ";
+//                         out << "{" << std::endl;
+//                         out << "    ";
+//
+//                         for (uint32_t j = 0; j < tensor.m_Shape[1]; ++j) {
+//                             out << "    ";
+//                             out << "{";
+//
+//                             for (uint32_t i = 0; i < tensor.m_Shape[2] - 1; ++i) {
+//                                 out << tensor.m_Data[tensor._index({k, j, i})] << ", ";
+//                             }
+//
+//                             out << tensor.m_Data[tensor._index({k, j, tensor.m_Shape[2] - 1})] << "}";
+//                             out << std::endl;
+//                             out << "    ";
+//                         }
+//
+//                         out << "}" << std::endl;
+//                     }
+//
+//                     out << "}";
+//                     break;
+//                 }
+//             }
+//
+//             return out;
+//         }
+// };
 
 template <typename T>
 class Tensor {
