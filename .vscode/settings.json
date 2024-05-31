@@ -80,7 +80,10 @@
         "__hash_table": "cpp",
         "__split_buffer": "cpp",
         "__tree": "cpp",
-        "filesystem": "cpp"
+        "filesystem": "cpp",
+        "queue": "cpp",
+        "stack": "cpp",
+        "ios": "cpp"
     },
     "C_Cpp.errorSquiggles": "enabled"
 }

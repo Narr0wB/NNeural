@@ -79,7 +79,9 @@ Tensor<T> tensormul(Tensor<T>& a, Tensor<T>& b) {
 // Computes the element-wise sum of two tensors in the form of: a + b
 // Broadcasting: Allows for broadcasting
 template <typename T>
-Tensor<T> add(Tensor<T>& a, Tensor<T>& b) {
+Tensor<T> add(const Tensor<T>& a, const Tensor<T>& b) {
+
+    //LOG_INFO("rank {} size {} fraction {} {}", _rank, m_Size, ((FP64)m_Size / (m_Size + 3)), id);
     
     if (a.identifier() == b.identifier()) {
         Tensor<T> result(a.shape());
@@ -93,7 +95,7 @@ Tensor<T> add(Tensor<T>& a, Tensor<T>& b) {
 
     if (a.identifier() > b.identifier()) {
         Tensor<T> result(a.shape());
-        BroadcastTensor<T> b_broadcasted = b.broadcast(a.shape());
+        Tensor<T> b_broadcasted = b.broadcast(a.shape());
 
         for (size_t i = 0; i < result.size(); ++i) {
             result.set(a.get(i) + b_broadcasted.get(i), i);
@@ -104,7 +106,7 @@ Tensor<T> add(Tensor<T>& a, Tensor<T>& b) {
 
     else {
         Tensor<T> result(b.shape());
-        BroadcastTensor<T> a_broadcasted = a.broadcast(b.shape());
+        Tensor<T> a_broadcasted = a.broadcast(b.shape());
 
         for (size_t i = 0; i < result.size(); ++i) {
             result.set(b.get(i) + a_broadcasted.get(i), i);
@@ -205,13 +207,13 @@ Tensor<T> scale(Tensor<T>& a, T scalar) {
 
 // Apply a particual function to each element in 
 template <typename T>
-void _tensor_apply(_IN_ T (*func)(T), _IN_ Tensor<T, Hardware::CPU>& A, _OUT_ Tensor<T, Hardware::CPU>& result) {
+void _tensor_apply(_IN_ T (*func)(T), _IN_ const Tensor<T>& A, _OUT_ Tensor<T>& result) {
     
 
     #pragma omp parallel for num_threads(MAX_THREADS)
     for (size_t i; i < A.size(); ++i) {
         // Apply func() to each element of A
-        A.set(func(A.get(i)), i);
+        result.set(func(A.get(i)), i);
     }
 }
 
@@ -230,11 +232,11 @@ void _tensor_forward(_IN_ Tensor<T>& Wm, _IN_ Tensor<T>& An, _IN_ Tensor<T>& Bm,
 
         for (size_t j = 0; j < Wm.shape()[1]; ++j) {
             if (j == 0) {
-                Zm(0, 0, i) += Bm(0, 0, i);
+                Zm.set(Zm.get({0, 0, i}) + Bm.get({0, 0, i}), {0, 0, i});
             }
 
             #pragma omp atomic
-            Zm(0, 0, i) += Wm(0, i, j) * An(0, 0, j);
+            Zm.set(Zm.get({0, 0, i}) + (Wm.get({0, 0, i}) * An.get({0, 0, j})), {0, 0, i});
         }
     }
 }

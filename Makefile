@@ -2,7 +2,7 @@ CC= g++
 INCLUDE= -Iinclude/ -I"C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.3/include"
 LIBPATH= -Llib/
 LIB= -lopencl
-COPTIONS= -g
+COPTIONS= -g -O0
 TARGET= build/test.exe
 
 OBJS=build/main.o build/Log.o build/Tensor.o build/Memory.o
@@ -11,7 +11,7 @@ OBJS=build/main.o build/Log.o build/Tensor.o build/Memory.o
 $(TARGET): $(OBJS)
 	$(CC) $(LIBPATH) $(COPTIONS) $(OBJS) -o $(TARGET) $(LIB)
 
-build/main.o: src/main.cpp 
+build/main.o: src/main.cpp src/utils/Memory.h src/tensor/Tensor.h
 	$(CC) $(INCLUDE) $(COPTIONS) -c $< -o $@
  
 build/Log.o: src/utils/Log.cpp src/utils/Log.h
